@@ -3,7 +3,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { applyPendingMigrations, ensurePostgresDatabase } from "./client.js";
-import { prepareEmbeddedPostgresNativeRuntime } from "./embedded-postgres-native.js";
+import { buildEmbeddedPostgresFlags } from "./embedded-postgres-flags.js";
 
 type EmbeddedPostgresInstance = {
   initialise(): Promise<void>;
@@ -18,6 +18,7 @@ type EmbeddedPostgresCtor = new (opts: {
   port: number;
   persistent: boolean;
   initdbFlags?: string[];
+  postgresFlags?: string[];
   onLog?: (message: unknown) => void;
   onError?: (message: unknown) => void;
 }) => EmbeddedPostgresInstance;
@@ -34,13 +35,13 @@ export type EmbeddedPostgresTestDatabase = {
 
 let embeddedPostgresSupportPromise: Promise<EmbeddedPostgresTestSupport> | null = null;
 
-const DEFAULT_PAPERCLIP_EMBEDDED_POSTGRES_PORT = 54329;
+const DEFAULT_STAPLER_EMBEDDED_POSTGRES_PORT = 54329;
 
 function getReservedTestPorts(): Set<number> {
   const configuredPorts = [
-    DEFAULT_PAPERCLIP_EMBEDDED_POSTGRES_PORT,
-    Number.parseInt(process.env.PAPERCLIP_EMBEDDED_POSTGRES_PORT ?? "", 10),
-    ...String(process.env.PAPERCLIP_TEST_POSTGRES_RESERVED_PORTS ?? "")
+    DEFAULT_STAPLER_EMBEDDED_POSTGRES_PORT,
+    Number.parseInt(process.env.STAPLER_EMBEDDED_POSTGRES_PORT ?? "", 10),
+    ...String(process.env.STAPLER_TEST_POSTGRES_RESERVED_PORTS ?? "")
       .split(",")
       .map((value) => Number.parseInt(value.trim(), 10)),
   ];
@@ -95,6 +96,7 @@ async function createEmbeddedPostgresTestInstance(tempDirPrefix: string) {
     port,
     persistent: true,
     initdbFlags: ["--encoding=UTF8", "--locale=C", "--lc-messages=C"],
+    postgresFlags: buildEmbeddedPostgresFlags(),
     onLog: () => {},
     onError: () => {},
   });

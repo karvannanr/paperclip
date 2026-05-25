@@ -66,7 +66,7 @@ import { InlineEditor } from "../components/InlineEditor";
 import { IssueChatThread, type IssueChatComposerHandle } from "../components/IssueChatThread";
 import { IssueContinuationHandoff } from "../components/IssueContinuationHandoff";
 import { IssueDocumentsSection } from "../components/IssueDocumentsSection";
-import { IssueSiblingNavigation } from "../components/IssueSiblingNavigation";
+import { IssueCustomFieldsSection } from "../components/IssueCustomFieldsSection";
 import { IssuesList } from "../components/IssuesList";
 import { AgentIcon } from "../components/AgentIconPicker";
 import { IssueReferenceActivitySummary } from "../components/IssueReferenceActivitySummary";
@@ -154,7 +154,7 @@ import {
   type RequestConfirmationInteraction,
   type SuggestTasksInteraction,
   type IssueTreeControlMode,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 
 type CommentReassignment = IssueCommentReassignment;
 type ActionableIssueThreadInteraction = SuggestTasksInteraction | RequestConfirmationInteraction;
@@ -3737,6 +3737,8 @@ export function IssueDetail() {
         }}
         extraActions={!hasAttachments ? attachmentUploadButton : null}
       />
+
+      <IssueCustomFieldsSection issueId={issue.id} />
 
       {attachmentsInitialLoading ? (
         <IssueSectionSkeleton titleWidth="w-24" rows={2} />

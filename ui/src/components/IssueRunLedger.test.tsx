@@ -3,7 +3,7 @@
 import { act } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { ActivityEvent, Issue, RunLivenessState } from "@paperclipai/shared";
+import type { ActivityEvent, Issue, RunLivenessState } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunForIssue } from "../api/activity";
 import type { ActiveRunForIssue } from "../api/heartbeats";
@@ -110,6 +110,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     startedAt: null,
     completedAt: null,
     cancelledAt: null,
+    scheduledFor: null,
     hiddenAt: null,
     createdAt: new Date("2026-04-18T19:00:00.000Z"),
     updatedAt: new Date("2026-04-18T19:00:00.000Z"),

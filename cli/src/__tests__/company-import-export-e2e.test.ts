@@ -114,16 +114,16 @@ interface TestPaperclipEnv {
 function createBasePaperclipEnv(options: TestPaperclipEnv) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith("PAPERCLIP_")) {
+    if (key.startsWith("STAPLER_")) {
       delete env[key];
     }
   }
 
-  env.PAPERCLIP_CONFIG = options.configPath;
-  env.PAPERCLIP_HOME = options.paperclipHome;
-  env.PAPERCLIP_INSTANCE_ID = options.instanceId;
-  env.PAPERCLIP_CONTEXT = path.join(options.paperclipHome, "context.json");
-  env.PAPERCLIP_AUTH_STORE = path.join(options.paperclipHome, "auth.json");
+  env.STAPLER_CONFIG = options.configPath;
+  env.STAPLER_HOME = options.paperclipHome;
+  env.STAPLER_INSTANCE_ID = options.instanceId;
+  env.STAPLER_CONTEXT = path.join(options.paperclipHome, "context.json");
+  env.STAPLER_AUTH_STORE = path.join(options.paperclipHome, "auth.json");
   if (options.shellHome) {
     env.HOME = options.shellHome;
   }
@@ -152,10 +152,10 @@ function createServerEnv(
   env.HOST = "127.0.0.1";
   env.PORT = String(port);
   env.SERVE_UI = "false";
-  env.PAPERCLIP_DB_BACKUP_ENABLED = "false";
+  env.STAPLER_DB_BACKUP_ENABLED = "false";
   env.HEARTBEAT_SCHEDULER_ENABLED = "false";
-  env.PAPERCLIP_MIGRATION_AUTO_APPLY = "true";
-  env.PAPERCLIP_UI_DEV_MIDDLEWARE = "false";
+  env.STAPLER_MIGRATION_AUTO_APPLY = "true";
+  env.STAPLER_UI_DEV_MIDDLEWARE = "false";
 
   return env;
 }
@@ -166,10 +166,10 @@ function createCliEnv(options: TestPaperclipEnv) {
   delete env.PORT;
   delete env.HOST;
   delete env.SERVE_UI;
-  delete env.PAPERCLIP_DB_BACKUP_ENABLED;
+  delete env.STAPLER_DB_BACKUP_ENABLED;
   delete env.HEARTBEAT_SCHEDULER_ENABLED;
-  delete env.PAPERCLIP_MIGRATION_AUTO_APPLY;
-  delete env.PAPERCLIP_UI_DEV_MIDDLEWARE;
+  delete env.STAPLER_MIGRATION_AUTO_APPLY;
+  delete env.STAPLER_UI_DEV_MIDDLEWARE;
   return env;
 }
 
@@ -213,7 +213,7 @@ async function runCliJson<T>(
   opts: TestPaperclipEnv & { apiBase?: string; includeConfigArg?: boolean },
 ) {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-  const cliArgs = ["--silent", "paperclipai", ...args];
+  const cliArgs = ["--silent", "stapler", ...args];
   if (opts.apiBase) {
     cliArgs.push("--api-base", opts.apiBase);
   }
@@ -247,7 +247,7 @@ async function waitForServer(
   while (Date.now() - startedAt < 30_000) {
     if (child.exitCode !== null) {
       throw new Error(
-        `paperclipai run exited before healthcheck succeeded.\nstdout:\n${output.stdout.join("")}\nstderr:\n${output.stderr.join("")}`,
+        `stapler run exited before healthcheck succeeded.\nstdout:\n${output.stdout.join("")}\nstderr:\n${output.stderr.join("")}`,
       );
     }
 
@@ -266,7 +266,7 @@ async function waitForServer(
   );
 }
 
-describeEmbeddedPostgres("paperclipai company import/export e2e", () => {
+describeEmbeddedPostgres("stapler company import/export e2e", () => {
   let tempRoot = "";
   let configPath = "";
   let exportDir = "";
@@ -297,7 +297,7 @@ describeEmbeddedPostgres("paperclipai company import/export e2e", () => {
     const output = { stdout: [] as string[], stderr: [] as string[] };
     const child = spawn(
       "pnpm",
-      ["paperclipai", "run", "--config", configPath],
+      ["stapler", "run", "--config", configPath],
       {
         cwd: repoRoot,
         env: createServerEnv(configPath, port, tempDb.connectionString, {

@@ -18,13 +18,13 @@ test("isCanaryVersion matches release canaries", () => {
 test("collectInternalDependencyProblems flags missing internal versions", () => {
   const manifest = {
     dependencies: {
-      "@paperclipai/plugin-sdk": "2026.425.0-canary.5",
+      "@stapler/plugin-sdk": "2026.425.0-canary.5",
       e2b: "^2.19.0",
     },
   };
   const packageDocsByName = new Map([
     [
-      "@paperclipai/plugin-sdk",
+      "@stapler/plugin-sdk",
       {
         versions: {
           "2026.427.0-canary.3": {},
@@ -33,25 +33,8 @@ test("collectInternalDependencyProblems flags missing internal versions", () => 
     ],
   ]);
 
-  assert.deepEqual(
-    collectInternalDependencyProblems(manifest, packageDocsByName),
-    ["dependencies requires @paperclipai/plugin-sdk@2026.425.0-canary.5, but npm does not expose that version"],
-  );
-});
-
-test("collectInternalDependencyProblems accepts version-specific manifests when the root document is stale", () => {
-  const manifest = {
-    dependencies: {
-      "@paperclipai/plugin-sdk": "2026.425.0-canary.5",
-    },
-  };
-  const packageDocsByName = new Map([
-    [
-      "@paperclipai/plugin-sdk",
-      {
-        versions: {},
-      },
-    ],
+  assert.deepEqual(collectInternalDependencyProblems(manifest, packageDocsByName), [
+    "dependencies requires @stapler/plugin-sdk@2026.425.0-canary.5, but npm does not expose that version",
   ]);
   const packageManifestsByKey = new Map([
     [
@@ -151,7 +134,7 @@ test("verifyPackageRegistryState tolerates a stale root versions map when dist-t
 test("verifyPackageRegistryState fails when canary latest is left in place by default", () => {
   const packageDocsByName = new Map([
     [
-      "@paperclipai/plugin-e2b",
+      "@stapler/plugin-e2b",
       {
         "dist-tags": {
           latest: "2026.425.0-canary.5",
@@ -160,19 +143,19 @@ test("verifyPackageRegistryState fails when canary latest is left in place by de
         versions: {
           "2026.425.0-canary.5": {
             dependencies: {
-              "@paperclipai/plugin-sdk": "2026.425.0-canary.5",
+              "@stapler/plugin-sdk": "2026.425.0-canary.5",
             },
           },
           "2026.427.0-canary.3": {
             dependencies: {
-              "@paperclipai/plugin-sdk": "2026.427.0-canary.3",
+              "@stapler/plugin-sdk": "2026.427.0-canary.3",
             },
           },
         },
       },
     ],
     [
-      "@paperclipai/plugin-sdk",
+      "@stapler/plugin-sdk",
       {
         versions: {
           "2026.427.0-canary.3": {},
@@ -183,8 +166,8 @@ test("verifyPackageRegistryState fails when canary latest is left in place by de
 
   assert.deepEqual(
     verifyPackageRegistryState({
-      packageName: "@paperclipai/plugin-e2b",
-      packageDoc: packageDocsByName.get("@paperclipai/plugin-e2b"),
+      packageName: "@stapler/plugin-e2b",
+      packageDoc: packageDocsByName.get("@stapler/plugin-e2b"),
       packageDocsByName,
       channel: "canary",
       distTag: "canary",
@@ -192,8 +175,8 @@ test("verifyPackageRegistryState fails when canary latest is left in place by de
       allowCanaryLatest: false,
     }),
     [
-      "@paperclipai/plugin-e2b: latest dist-tag still resolves to canary 2026.425.0-canary.5; if that state is intentional, rerun the verification script directly with --allow-canary-latest",
-      "@paperclipai/plugin-e2b@2026.425.0-canary.5 via latest: dependencies requires @paperclipai/plugin-sdk@2026.425.0-canary.5, but npm does not expose that version",
+      "@stapler/plugin-e2b: latest dist-tag still resolves to canary 2026.425.0-canary.5; rerun with --allow-canary-latest only when that state is intentional",
+      "@stapler/plugin-e2b@2026.425.0-canary.5 via latest: dependencies requires @stapler/plugin-sdk@2026.425.0-canary.5, but npm does not expose that version",
     ],
   );
 });
@@ -240,14 +223,14 @@ test("verifyPackageRegistryState allows intentional canary latest but still chec
         versions: {
           "2026.427.0-canary.3": {
             dependencies: {
-              "@paperclipai/server": "2026.427.0-canary.3",
+              "@stapler/server": "2026.427.0-canary.3",
             },
           },
         },
       },
     ],
     [
-      "@paperclipai/server",
+      "@stapler/server",
       {
         versions: {
           "2026.427.0-canary.3": {},

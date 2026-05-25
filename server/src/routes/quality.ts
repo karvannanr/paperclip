@@ -1,0 +1,357 @@
+/**
+ * Quality routes — exposes continuous-scoring data for the Quality Flywheel.
+ *
+ * Pillar 1 only: per-run scores and per-agent rolling averages.
+ * Future pillars extend these routes with failure-mode clustering,
+ * drift alerts, and quality trends aggregation.
+ */
+
+import { Router } from "express";
+import { and, avg, count, desc, eq, gte, sql } from "drizzle-orm";
+import type { Db } from "@stapler/db";
+import { agents, goldenRuns, heartbeatRuns, runScores } from "@stapler/db";
+import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { notFound } from "../errors.js";
+import { runPostMortem } from "../services/post-mortem.js";
+import { getAgentQualityTrends } from "../services/quality-trends.js";
+import { getAgentCollabStats } from "../services/collaboration-analyzer.js";
+import { minePlaybooksForAgent } from "../services/playbook-miner.js";
+import { playbooks, playbookExperiments } from "@stapler/db";
+import { getLlmQueueStats, getLlmQueueBaseUrls } from "@stapler/adapter-ollama-local/server";
+
+const WINDOW_DAYS = 30;
+
+export function qualityRoutes(db: Db) {
+  const router = Router();
+
+  /** Get the latest score for a heartbeat run (404 if not judged yet). */
+  router.get("/runs/:id/score", async (req, res) => {
+    const { id } = req.params as { id: string };
+    const rows = await db
+      .select()
+      .from(runScores)
+      .where(eq(runScores.runId, id))
+      .orderBy(desc(runScores.judgedAt))
+      .limit(1);
+    const row = rows[0];
+    if (!row) throw notFound("No score for this run");
+    assertCompanyAccess(req, row.companyId);
+    res.json(row);
+  });
+
+  /**
+   * Rolling quality trend for an agent:
+   *   { avgScore, sampleSize, recent: [{ runId, score, judgedAt, reasoning }] }
+   * Window defaults to 30 days. `?limit=N` caps the recent list (default 20).
+   */
+  router.get("/agents/:id/quality/trend", async (req, res) => {
+    const { id: agentId } = req.params as { id: string };
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+    if (!agent) throw notFound("Agent not found");
+    assertCompanyAccess(req, agent.companyId);
+
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    const summaryRows = await db
+      .select({
+        avgScore: avg(runScores.score).mapWith(Number),
+        sampleSize: count(runScores.id).mapWith(Number),
+      })
+      .from(runScores)
+      .where(and(eq(runScores.agentId, agentId), gte(runScores.judgedAt, since)));
+    const summary = summaryRows[0] ?? { avgScore: null, sampleSize: 0 };
+
+    const recent = await db
+      .select({
+        id: runScores.id,
+        runId: runScores.runId,
+        score: runScores.score,
+        reasoning: runScores.reasoning,
+        judgedAt: runScores.judgedAt,
+        rubricSource: runScores.rubricSource,
+        judgeModel: runScores.judgeModel,
+      })
+      .from(runScores)
+      .where(eq(runScores.agentId, agentId))
+      .orderBy(desc(runScores.judgedAt))
+      .limit(limit);
+
+    res.json({
+      windowDays: WINDOW_DAYS,
+      avgScore: summary.avgScore,
+      sampleSize: summary.sampleSize,
+      recent,
+    });
+  });
+
+  /**
+   * Company-wide quality summary: per-agent rolling avg + sample size over
+   * the default window. Used by the Quality dashboard (future Pillar 5).
+   */
+  router.get("/companies/:companyId/quality/trend", async (req, res) => {
+    const { companyId } = req.params as { companyId: string };
+    assertCompanyAccess(req, companyId);
+    const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    const rows = await db
+      .select({
+        agentId: runScores.agentId,
+        avgScore: avg(runScores.score).mapWith(Number),
+        sampleSize: count(runScores.id).mapWith(Number),
+        lastJudgedAt: sql<Date>`max(${runScores.judgedAt})`,
+      })
+      .from(runScores)
+      .where(and(eq(runScores.companyId, companyId), gte(runScores.judgedAt, since)))
+      .groupBy(runScores.agentId);
+
+    res.json({ windowDays: WINDOW_DAYS, items: rows });
+  });
+
+  /**
+   * Manually trigger a post-mortem on a run (Pillar 3).
+   * Useful for runs that scored poorly but were auto-scored before the
+   * post-mortem pipeline was wired, or for re-running after fixing a rule.
+   */
+  router.post("/runs/:id/post-mortem", async (req, res) => {
+    const { id: runId } = req.params as { id: string };
+    const runRows = await db
+      .select({ companyId: runScores.companyId })
+      .from(runScores)
+      .where(eq(runScores.runId, runId))
+      .limit(1);
+    // Fall back to heartbeat_runs for runs without a score
+    const heartbeatRows = runRows.length === 0
+      ? await db
+          .select({ companyId: heartbeatRuns.companyId })
+          .from(heartbeatRuns)
+          .where(eq(heartbeatRuns.id, runId))
+          .limit(1)
+      : [];
+    const companyId = runRows[0]?.companyId ?? heartbeatRows[0]?.companyId;
+    if (!companyId) throw notFound("Run not found");
+    assertCompanyAccess(req, companyId);
+
+    const reason = (req.body as { reason?: string }).reason ?? null;
+    void runPostMortem(db, runId, reason).catch(() => {});
+    res.status(202).json({ runId, status: "post-mortem queued" });
+  });
+
+  /**
+   * Multi-window trend data for an agent: 7d / 30d / 90d rolling averages.
+   * Powers the Quality dashboard sparklines.
+   */
+  router.get("/agents/:id/quality/trends", async (req, res) => {
+    const { id: agentId } = req.params as { id: string };
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+    if (!agent) throw notFound("Agent not found");
+    assertCompanyAccess(req, agent.companyId);
+    const trends = await getAgentQualityTrends(db, agent.id, agent.companyId);
+    res.json(trends);
+  });
+
+  /** List recent scores across a company (for timelines + drill-down). */
+  router.get("/companies/:companyId/quality/recent", async (req, res) => {
+    const { companyId } = req.params as { companyId: string };
+    assertCompanyAccess(req, companyId);
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+
+    const rows = await db
+      .select({
+        id: runScores.id,
+        runId: runScores.runId,
+        agentId: runScores.agentId,
+        score: runScores.score,
+        reasoning: runScores.reasoning,
+        judgedAt: runScores.judgedAt,
+        judgeModel: runScores.judgeModel,
+        runStatus: heartbeatRuns.status,
+        runStartedAt: heartbeatRuns.startedAt,
+      })
+      .from(runScores)
+      .innerJoin(heartbeatRuns, eq(heartbeatRuns.id, runScores.runId))
+      .where(eq(runScores.companyId, companyId))
+      .orderBy(desc(runScores.judgedAt))
+      .limit(limit);
+
+    res.json({ items: rows });
+  });
+
+  // ── Golden Runs (Pillar 4) ──────────────────────────────────────────────────
+
+  /** List golden runs for an agent. */
+  router.get("/agents/:id/golden-runs", async (req, res) => {
+    const { id: agentId } = req.params as { id: string };
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+    if (!agent) throw notFound("Agent not found");
+    assertCompanyAccess(req, agent.companyId);
+    const rows = await db
+      .select()
+      .from(goldenRuns)
+      .where(eq(goldenRuns.agentId, agentId))
+      .orderBy(desc(goldenRuns.createdAt));
+    res.json({ items: rows });
+  });
+
+  /** Mark a run as golden. Body: { runId, label, frozenScore? } */
+  router.post("/agents/:id/golden-runs", async (req, res) => {
+    assertBoard(req);
+    const { id: agentId } = req.params as { id: string };
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+    if (!agent) throw notFound("Agent not found");
+    assertCompanyAccess(req, agent.companyId);
+    const { runId, label, frozenScore } = req.body as {
+      runId: string;
+      label: string;
+      frozenScore?: number;
+    };
+    const [row] = await db
+      .insert(goldenRuns)
+      .values({
+        companyId: agent.companyId,
+        agentId,
+        runId,
+        label: label ?? `golden-${new Date().toISOString().slice(0, 10)}`,
+        frozenScore: frozenScore ?? null,
+      })
+      .returning();
+    res.status(201).json(row);
+  });
+
+  /**
+   * Agent collaboration stats: per-pair win rates and avg round-trip.
+   * Powers the "Who does this agent delegate to?" tab on AgentDetail.
+   */
+  router.get("/agents/:id/collab-stats", async (req, res) => {
+    const { id: agentId } = req.params as { id: string };
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+    if (!agent) throw notFound("Agent not found");
+    assertCompanyAccess(req, agent.companyId);
+    const stats = await getAgentCollabStats(db, agentId, agent.companyId);
+    res.json({ items: stats });
+  });
+
+  /** Remove a golden run record. */
+  router.delete("/agents/:agentId/golden-runs/:id", async (req, res) => {
+    assertBoard(req);
+    const { agentId, id } = req.params as { agentId: string; id: string };
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+    if (!agent) throw notFound("Agent not found");
+    assertCompanyAccess(req, agent.companyId);
+    await db.delete(goldenRuns).where(and(eq(goldenRuns.id, id), eq(goldenRuns.agentId, agentId)));
+    res.status(204).send();
+  });
+
+  // ── Playbooks (Pillar 8) ───────────────────────────────────────────────────
+
+  /** List playbooks for an agent. */
+  router.get("/agents/:id/playbooks", async (req, res) => {
+    const { id: agentId } = req.params as { id: string };
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+    if (!agent) throw notFound("Agent not found");
+    assertCompanyAccess(req, agent.companyId);
+    const rows = await db
+      .select()
+      .from(playbooks)
+      .where(eq(playbooks.agentId, agentId))
+      .orderBy(desc(playbooks.updatedAt));
+    res.json({ items: rows });
+  });
+
+  /** Manually trigger playbook mining for an agent. */
+  router.post("/agents/:id/playbooks/mine", async (req, res) => {
+    assertBoard(req);
+    const { id: agentId } = req.params as { id: string };
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+    if (!agent) throw notFound("Agent not found");
+    assertCompanyAccess(req, agent.companyId);
+    const n = await minePlaybooksForAgent(db, agentId, agent.companyId);
+    res.json({ playbooksUpserted: n });
+  });
+
+  /** Update a playbook (disable/re-enable). */
+  router.patch("/agents/:agentId/playbooks/:id", async (req, res) => {
+    assertBoard(req);
+    const { agentId, id } = req.params as { agentId: string; id: string };
+    const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    const agent = agentRows[0];
+    if (!agent) throw notFound("Agent not found");
+    assertCompanyAccess(req, agent.companyId);
+    const { active } = req.body as { active?: boolean };
+    const [updated] = await db
+      .update(playbooks)
+      .set({ active: active === false ? 0 : 1, updatedAt: new Date() })
+      .where(and(eq(playbooks.id, id), eq(playbooks.agentId, agentId)))
+      .returning();
+    if (!updated) throw notFound("Playbook not found");
+    res.json(updated);
+  });
+
+  /** List A/B experiments for a company. */
+  router.get("/companies/:companyId/playbook-experiments", async (req, res) => {
+    const { companyId } = req.params as { companyId: string };
+    assertCompanyAccess(req, companyId);
+    const rows = await db
+      .select()
+      .from(playbookExperiments)
+      .where(eq(playbookExperiments.companyId, companyId))
+      .orderBy(desc(playbookExperiments.createdAt));
+    res.json({ items: rows });
+  });
+
+  // ── LLM Queue stats (Level 3) ──────────────────────────────────────────────
+
+  /**
+   * GET /llm-queue/stats
+   *
+   * Returns in-process queue state for all known Ollama endpoints, plus a count
+   * of heartbeat_runs currently in "running" status per company (as a cross-check).
+   * No auth required beyond being logged in — this is diagnostic data.
+   *
+   * Response: { endpoints: LlmQueueStats[], dbRunning: number }
+   */
+  router.get("/llm-queue/stats", async (_req, res) => {
+    const knownUrls = getLlmQueueBaseUrls();
+    // Also include the default URL even if no slots have been acquired yet
+    const defaultUrl = "http://localhost:11434";
+    const urlSet = new Set([...knownUrls, defaultUrl]);
+    const endpoints = [...urlSet].map((url) => getLlmQueueStats(url));
+
+    // Count how many heartbeat_runs are currently running (cross-check vs in-process)
+    const [dbRow] = await db
+      .select({ count: count() })
+      .from(heartbeatRuns)
+      .where(eq(heartbeatRuns.status, "running"));
+    const dbRunning = Number(dbRow?.count ?? 0);
+
+    res.json({ endpoints, dbRunning });
+  });
+
+  /**
+   * GET /llm-queue/stats/:encodedUrl
+   *
+   * Returns queue stats for a specific Ollama endpoint URL.
+   * URL must be base64-encoded to avoid routing ambiguity.
+   */
+  router.get("/llm-queue/stats/:encodedUrl", (req, res) => {
+    const { encodedUrl } = req.params as { encodedUrl: string };
+    let baseUrl: string;
+    try {
+      baseUrl = Buffer.from(encodedUrl, "base64").toString("utf8");
+    } catch {
+      res.status(400).json({ error: "Invalid base64 URL encoding" });
+      return;
+    }
+    res.json(getLlmQueueStats(baseUrl));
+  });
+
+  return router;
+}

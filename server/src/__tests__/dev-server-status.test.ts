@@ -36,7 +36,7 @@ describe("dev server status helpers", () => {
       lastRestartAt: "2026-03-20T11:30:00.000Z",
     });
 
-    expect(readPersistedDevServerStatus({ PAPERCLIP_DEV_SERVER_STATUS_FILE: filePath })).toEqual({
+    expect(readPersistedDevServerStatus({ STAPLER_DEV_SERVER_STATUS_FILE: filePath })).toEqual({
       dirty: true,
       lastChangedAt: "2026-03-20T12:00:00.000Z",
       changedPathCount: 4,
@@ -76,7 +76,7 @@ describe("dev server status helpers", () => {
       pendingMigrations: [],
     });
 
-    expect(readPersistedDevServerStatus({ PAPERCLIP_DEV_SERVER_STATUS_FILE: filePath })).toBeNull();
+    expect(readPersistedDevServerStatus({ STAPLER_DEV_SERVER_STATUS_FILE: filePath })).toBeNull();
   });
 
   it("writes restart requests next to the persisted status file", () => {

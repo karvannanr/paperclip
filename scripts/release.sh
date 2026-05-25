@@ -268,10 +268,8 @@ if [ "$dry_run" = true ]; then
   release_info "==> Step 6/7: Skipping npm verification in dry-run mode..."
 else
   release_info "==> Step 6/7: Confirming npm package availability and dist-tag integrity..."
-  VERIFY_ATTEMPTS="${NPM_PUBLISH_VERIFY_ATTEMPTS:-12}"
-  VERIFY_DELAY_SECONDS="${NPM_PUBLISH_VERIFY_DELAY_SECONDS:-5}"
-  REGISTRY_STATE_VERIFY_ATTEMPTS="${NPM_REGISTRY_STATE_VERIFY_ATTEMPTS:-12}"
-  REGISTRY_STATE_VERIFY_DELAY_SECONDS="${NPM_REGISTRY_STATE_VERIFY_DELAY_SECONDS:-5}"
+  VERIFY_ATTEMPTS="${NPM_PUBLISH_VERIFY_ATTEMPTS:-24}"
+  VERIFY_DELAY_SECONDS="${NPM_PUBLISH_VERIFY_DELAY_SECONDS:-10}"
   MISSING_PUBLISHED_PACKAGES=""
 
   while IFS=$'\t' read -r _pkg_dir pkg_name pkg_version; do
@@ -333,7 +331,7 @@ if [ "$dry_run" = true ]; then
 else
   if [ "$channel" = "canary" ]; then
     release_info "Published canary ${TARGET_PUBLISH_VERSION}."
-    release_info "Install with: npx paperclipai@canary onboard"
+    release_info "Install with: npx @googlarz/stapler@canary onboard"
     release_info "Next step: git push ${PUBLISH_REMOTE} refs/tags/${tag_name}"
   else
     release_info "Published stable ${TARGET_PUBLISH_VERSION}."

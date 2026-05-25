@@ -43,7 +43,7 @@ import { cn } from "../lib/utils";
 import { NotFoundPage } from "../pages/NotFound";
 import { PluginSlotMount, resolveRouteSidebarSlot, usePluginSlots } from "../plugins/slots";
 
-const INSTANCE_SETTINGS_MEMORY_KEY = "paperclip.lastInstanceSettingsPath";
+const INSTANCE_SETTINGS_MEMORY_KEY = "stapler.lastInstanceSettingsPath";
 
 function getCompanyRouteSegment(pathname: string, companyPrefix: string | undefined): string | null {
   if (!companyPrefix) return null;
@@ -381,15 +381,13 @@ export function Layout() {
             )}
           >
             <div className="flex flex-1 min-h-0 overflow-hidden">
-              <div className="w-60 shrink-0 overflow-hidden">
-                {isInstanceSettingsRoute ? (
-                  <InstanceSidebar />
-                ) : isCompanySettingsRoute ? (
-                  <CompanySettingsSidebar />
-                ) : (
-                  companySidebar
-                )}
-              </div>
+              {isInstanceSettingsRoute ? (
+                <InstanceSidebar />
+              ) : isCompanySettingsRoute ? (
+                <CompanySettingsSidebar />
+              ) : (
+                <Sidebar />
+              )}
             </div>
             <SidebarAccountMenu
               deploymentMode={health?.deploymentMode}
@@ -400,7 +398,12 @@ export function Layout() {
         ) : (
           <div className="flex h-full flex-col shrink-0">
             <div className="flex flex-1 min-h-0">
-              <ResizableSidebarPane open={sidebarOpen} resizable className="h-full shrink-0">
+              <div
+                className={cn(
+                  "overflow-hidden transition-[width] duration-100 ease-out",
+                  sidebarOpen ? "w-60" : "w-0"
+                )}
+              >
                 {isInstanceSettingsRoute ? (
                   <InstanceSidebar />
                 ) : isCompanySettingsRoute ? (

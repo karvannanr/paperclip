@@ -2,7 +2,7 @@
  * Core types for the Paperclip plugin worker-side SDK.
  *
  * These types define the stable public API surface that plugin workers import
- * from `@paperclipai/plugin-sdk`.  The host provides a concrete implementation
+ * from `@stapler/plugin-sdk`.  The host provides a concrete implementation
  * of `PluginContext` to the plugin at initialisation time.
  *
  * @see PLUGIN_SPEC.md §14 — SDK Surface
@@ -39,17 +39,12 @@ import type {
   RoutineRun,
   Agent,
   Goal,
-  HumanCompanyMembershipRole,
-  InviteJoinType,
-  MembershipStatus,
-  PermissionKey,
-  PrincipalPermissionGrant,
-  PrincipalType,
-} from "@paperclipai/shared";
-import type { PluginPerformActionContext } from "./protocol.js";
+  IssueCustomFieldType,
+  IssueCustomFieldDeclaration,
+} from "@stapler/shared";
 
 // ---------------------------------------------------------------------------
-// Re-exports from @paperclipai/shared (plugin authors import from one place)
+// Re-exports from @stapler/shared (plugin authors import from one place)
 // ---------------------------------------------------------------------------
 
 export type {
@@ -127,13 +122,9 @@ export type {
   IssueSurfaceVisibility,
   Agent,
   Goal,
-  HumanCompanyMembershipRole,
-  InviteJoinType,
-  MembershipStatus,
-  PermissionKey,
-  PrincipalPermissionGrant,
-  PrincipalType,
-} from "@paperclipai/shared";
+  IssueCustomFieldType,
+  IssueCustomFieldDeclaration,
+} from "@stapler/shared";
 
 // ---------------------------------------------------------------------------
 // Scope key — identifies where plugin state is stored
@@ -419,6 +410,20 @@ export interface PluginExecutionWorkspaceMetadata {
  * @see PLUGIN_SPEC.md §13.3 — `validateConfig`
  * @see PLUGIN_SPEC.md §13.4 — `configChanged`
  */
+/** Sub-client for plugin-managed mutable runtime configuration. Requires `plugin.config.write`. */
+export interface PluginConfigRuntimeClient {
+  /** Returns the current runtime config values and an opaque revision string. */
+  get(): Promise<{ values: Record<string, unknown>; revision: string }>;
+  /**
+   * Merges `patch` into the stored runtime config and increments the revision.
+   * Keys in `patch` must not be reserved (`__proto__`, `constructor`, `prototype`,
+   * empty string, or strings starting/ending with a dot).
+   */
+  set(patch: Record<string, unknown>): Promise<{ revision: string }>;
+  /** Removes a single key from the stored runtime config and increments the revision. */
+  unset(key: string): Promise<{ revision: string }>;
+}
+
 export interface PluginConfigClient {
   /**
    * Returns the resolved operator configuration for this plugin instance.
@@ -426,6 +431,17 @@ export interface PluginConfigClient {
    * host before being passed to the worker.
    */
   get(): Promise<Record<string, unknown>>;
+
+  /**
+   * Plugin-managed mutable runtime configuration. Requires `plugin.config.write` capability.
+   *
+   * Unlike operator-provided config (read-only), runtime config is written by the plugin
+   * worker and persists across restarts. Operators can inspect and clear it from the
+   * instance settings UI.
+   *
+   * @see PLUGIN_SPEC.md §CC-G3 — ctx.config.runtime
+   */
+  runtime: PluginConfigRuntimeClient;
 }
 
 export interface PluginLocalFolderProblem {
@@ -657,6 +673,41 @@ export interface PluginSecretsClient {
    * @returns The resolved secret value
    */
   resolve(secretRef: string): Promise<string>;
+
+  /**
+   * Create or rotate a named secret in the Stapler vault.
+   *
+   * The secret material is encrypted before being stored. If a secret with
+   * the given name already exists and was created by this plugin, it is
+   * rotated to the new value. If it was created by a different actor, the
+   * call throws an ownership collision error.
+   *
+   * Requires `secrets.write` capability.
+   *
+   * Secret values must never be cached, logged, or written to plugin state.
+   *
+   * @param input - The secret name, value, and optional description
+   * @returns The secret UUID (use as a secretRef in plugin config)
+   */
+  write(input: {
+    companyId: string;
+    name: string;
+    value: string;
+    description?: string;
+  }): Promise<string>;
+
+  /**
+   * Delete a named secret from the Stapler vault.
+   *
+   * Only secrets created by this plugin (via `ctx.secrets.write`) may be
+   * deleted. Attempting to delete a secret owned by a different actor throws
+   * an ownership error. If the secret does not exist, the call is a no-op.
+   *
+   * Requires `secrets.write` capability.
+   *
+   * @param input - The company ID and secret name to delete
+   */
+  delete(input: { companyId: string; name: string }): Promise<void>;
 }
 
 /**
@@ -1070,6 +1121,75 @@ export interface PluginCompaniesClient {
   get(companyId: string): Promise<Company | null>;
 }
 
+// ---------------------------------------------------------------------------
+// WS-4: Issue custom fields
+// ---------------------------------------------------------------------------
+
+/**
+ * A single issue custom field value as returned by `ctx.issues.customFields.*`.
+ *
+ * Plugin RPC: only the calling plugin's own fields are returned.
+ * Board REST: all plugins' fields are returned, including `pluginKey` and `pluginDisplayName`.
+ *
+ * Requires `issue.custom-fields.read` capability.
+ */
+export interface IssueCustomField {
+  /** UUID of the plugin that owns this field. */
+  pluginId: string;
+  /** Stable plugin identifier (e.g. `"acme.linear-sync"`). */
+  pluginKey: string;
+  /** Human-readable plugin name for UI display (anti-label-spoofing). */
+  pluginDisplayName: string;
+  /** Field key — matches ^[a-z][a-z0-9_-]*$. */
+  key: string;
+  /** Field type as declared in the manifest. */
+  type: IssueCustomFieldType;
+  /** Human-readable label from manifest, denormalized at write time. */
+  label: string;
+  /** Stored value as string. Non-null for all types when set. */
+  valueText: string | null;
+  /** Parsed numeric value; non-null only when type=number. */
+  valueNumber: number | null;
+}
+
+/**
+ * SDK client for issue custom fields.
+ * Mounted as `ctx.issues.customFields`.
+ *
+ * All methods require `issue.custom-fields.read` or `issue.custom-fields.write`.
+ */
+export interface IssueCustomFieldsClient {
+  /**
+   * Set a custom field value on an issue.
+   * Requires `issue.custom-fields.write`.
+   */
+  set(params: {
+    companyId: string;
+    issueId: string;
+    key: string;
+    value: string;
+  }): Promise<void>;
+
+  /**
+   * Soft-delete a custom field value from an issue.
+   * Requires `issue.custom-fields.write`.
+   */
+  unset(params: {
+    companyId: string;
+    issueId: string;
+    key: string;
+  }): Promise<void>;
+
+  /**
+   * List this plugin's custom fields for an issue.
+   * Requires `issue.custom-fields.read`.
+   */
+  listForIssue(params: {
+    companyId: string;
+    issueId: string;
+  }): Promise<IssueCustomField[]>;
+}
+
 /**
  * `ctx.issues.documents` — read and write issue documents.
  *
@@ -1460,6 +1580,11 @@ export interface PluginIssuesClient {
   relations: PluginIssueRelationsClient;
   /** Read compact orchestration summaries. */
   summaries: PluginIssueSummariesClient;
+  /**
+   * Read and write issue custom fields declared in this plugin's manifest.
+   * Requires `issue.custom-fields.read` / `issue.custom-fields.write`.
+   */
+  customFields: IssueCustomFieldsClient;
 }
 
 /**
@@ -1779,7 +1904,7 @@ export interface PluginAuthorizationClient {
  * ctx.streams.close("chat");
  * ```
  *
- * @see usePluginStream in `@paperclipai/plugin-sdk/ui`
+ * @see usePluginStream in `@stapler/plugin-sdk/ui`
  */
 export interface PluginStreamsClient {
   /**
@@ -1816,7 +1941,7 @@ export interface PluginStreamsClient {
  *
  * @example
  * ```ts
- * import { definePlugin } from "@paperclipai/plugin-sdk";
+ * import { definePlugin } from "@stapler/plugin-sdk";
  *
  * export default definePlugin({
  *   async setup(ctx) {

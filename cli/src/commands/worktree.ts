@@ -45,14 +45,13 @@ import {
   runDatabaseRestore,
   createEmbeddedPostgresLogBuffer,
   formatEmbeddedPostgresError,
-  prepareEmbeddedPostgresNativeRuntime,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import type { Command } from "commander";
 import { ensureAgentJwtSecret, loadPaperclipEnvFile, mergePaperclipEnvEntries, readPaperclipEnvEntries, resolvePaperclipEnvFile } from "../config/env.js";
 import { expandHomePrefix } from "../config/home.js";
 import type { PaperclipConfig } from "../config/schema.js";
 import { readConfig, resolveConfigPath, writeConfig } from "../config/store.js";
-import { printPaperclipCliBanner } from "../utils/banner.js";
+import { printStaplerCliBanner } from "../utils/banner.js";
 import { resolveRuntimeLikePath } from "../utils/path-resolver.js";
 import {
   buildWorktreeConfig,
@@ -205,7 +204,7 @@ function nonEmpty(value: string | null | undefined): string | null {
 }
 
 function isCurrentSourceConfigPath(sourceConfigPath: string): boolean {
-  const currentConfigPath = process.env.PAPERCLIP_CONFIG;
+  const currentConfigPath = process.env.STAPLER_CONFIG;
   if (!currentConfigPath || currentConfigPath.trim().length === 0) {
     return false;
   }
@@ -240,11 +239,11 @@ function resolveWorktreeMakeName(name: string): string {
 }
 
 function resolveWorktreeHome(explicit?: string): string {
-  return explicit ?? process.env.PAPERCLIP_WORKTREES_DIR ?? DEFAULT_WORKTREE_HOME;
+  return explicit ?? process.env.STAPLER_WORKTREES_DIR ?? DEFAULT_WORKTREE_HOME;
 }
 
 function resolveWorktreeStartPoint(explicit?: string): string | undefined {
-  return explicit ?? nonEmpty(process.env.PAPERCLIP_WORKTREE_START_POINT) ?? undefined;
+  return explicit ?? nonEmpty(process.env.STAPLER_WORKTREE_START_POINT) ?? undefined;
 }
 
 type ConfiguredStorage = {
@@ -870,12 +869,12 @@ export function resolveWorktreeReseedTargetPaths(input: {
   rootPath: string;
 }): WorktreeLocalPaths {
   const envEntries = readPaperclipEnvEntries(resolvePaperclipEnvFile(input.configPath));
-  const homeDir = nonEmpty(envEntries.PAPERCLIP_HOME);
-  const instanceId = nonEmpty(envEntries.PAPERCLIP_INSTANCE_ID);
+  const homeDir = nonEmpty(envEntries.STAPLER_HOME);
+  const instanceId = nonEmpty(envEntries.STAPLER_INSTANCE_ID);
 
   if (!homeDir || !instanceId) {
     throw new Error(
-      `Target config ${input.configPath} does not look like a worktree-local Paperclip instance. Expected PAPERCLIP_HOME and PAPERCLIP_INSTANCE_ID in the adjacent .env.`,
+      `Target config ${input.configPath} does not look like a worktree-local Paperclip instance. Expected STAPLER_HOME and STAPLER_INSTANCE_ID in the adjacent .env.`,
     );
   }
 
@@ -1014,8 +1013,8 @@ export function copySeededSecretsKey(input: {
 
   const allowProcessEnvFallback = isCurrentSourceConfigPath(input.sourceConfigPath);
   const sourceInlineMasterKey =
-    nonEmpty(input.sourceEnvEntries.PAPERCLIP_SECRETS_MASTER_KEY) ??
-    (allowProcessEnvFallback ? nonEmpty(process.env.PAPERCLIP_SECRETS_MASTER_KEY) : null);
+    nonEmpty(input.sourceEnvEntries.STAPLER_SECRETS_MASTER_KEY) ??
+    (allowProcessEnvFallback ? nonEmpty(process.env.STAPLER_SECRETS_MASTER_KEY) : null);
   if (sourceInlineMasterKey) {
     writeFileSync(input.targetKeyFilePath, sourceInlineMasterKey, {
       encoding: "utf8",
@@ -1030,8 +1029,8 @@ export function copySeededSecretsKey(input: {
   }
 
   const sourceKeyFileOverride =
-    nonEmpty(input.sourceEnvEntries.PAPERCLIP_SECRETS_MASTER_KEY_FILE) ??
-    (allowProcessEnvFallback ? nonEmpty(process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE) : null);
+    nonEmpty(input.sourceEnvEntries.STAPLER_SECRETS_MASTER_KEY_FILE) ??
+    (allowProcessEnvFallback ? nonEmpty(process.env.STAPLER_SECRETS_MASTER_KEY_FILE) : null);
   const sourceConfiguredKeyPath = sourceKeyFileOverride ?? input.sourceConfig.secrets.localEncrypted.keyFilePath;
   const sourceKeyFilePath = resolveRuntimeLikePath(sourceConfiguredKeyPath, input.sourceConfigPath);
 
@@ -1414,12 +1413,12 @@ async function runWorktreeInit(opts: WorktreeInitOptions): Promise<void> {
   writeConfig(targetConfig, paths.configPath);
   const sourceEnvEntries = readPaperclipEnvEntries(resolvePaperclipEnvFile(sourceConfigPath));
   const existingAgentJwtSecret =
-    nonEmpty(sourceEnvEntries.PAPERCLIP_AGENT_JWT_SECRET) ??
-    nonEmpty(process.env.PAPERCLIP_AGENT_JWT_SECRET);
+    nonEmpty(sourceEnvEntries.STAPLER_AGENT_JWT_SECRET) ??
+    nonEmpty(process.env.STAPLER_AGENT_JWT_SECRET);
   mergePaperclipEnvEntries(
     {
       ...buildWorktreeEnvEntries(paths, branding),
-      ...(existingAgentJwtSecret ? { PAPERCLIP_AGENT_JWT_SECRET: existingAgentJwtSecret } : {}),
+      ...(existingAgentJwtSecret ? { STAPLER_AGENT_JWT_SECRET: existingAgentJwtSecret } : {}),
     },
     paths.envPath,
   );
@@ -1498,14 +1497,14 @@ async function runWorktreeInit(opts: WorktreeInitOptions): Promise<void> {
 }
 
 export async function worktreeInitCommand(opts: WorktreeInitOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree init ")));
+  printStaplerCliBanner();
+  p.intro(pc.bgCyan(pc.black(" stapler worktree init ")));
   await runWorktreeInit(opts);
 }
 
 export async function worktreeMakeCommand(nameArg: string, opts: WorktreeMakeOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree:make ")));
+  printStaplerCliBanner();
+  p.intro(pc.bgCyan(pc.black(" stapler worktree:make ")));
 
   const name = resolveWorktreeMakeName(nameArg);
   const startPoint = resolveWorktreeStartPoint(opts.startPoint);
@@ -1717,8 +1716,8 @@ function worktreePathHasUncommittedChanges(worktreePath: string): boolean {
 }
 
 export async function worktreeCleanupCommand(nameArg: string, opts: WorktreeCleanupOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree:cleanup ")));
+  printStaplerCliBanner();
+  p.intro(pc.bgCyan(pc.black(" stapler worktree:cleanup ")));
 
   const name = resolveWorktreeMakeName(nameArg);
   const sourceCwd = process.cwd();
@@ -1857,10 +1856,10 @@ export async function worktreeEnvCommand(opts: WorktreeEnvOptions): Promise<void
   const envPath = resolvePaperclipEnvFile(configPath);
   const envEntries = readPaperclipEnvEntries(envPath);
   const out = {
-    PAPERCLIP_CONFIG: configPath,
-    ...(envEntries.PAPERCLIP_HOME ? { PAPERCLIP_HOME: envEntries.PAPERCLIP_HOME } : {}),
-    ...(envEntries.PAPERCLIP_INSTANCE_ID ? { PAPERCLIP_INSTANCE_ID: envEntries.PAPERCLIP_INSTANCE_ID } : {}),
-    ...(envEntries.PAPERCLIP_CONTEXT ? { PAPERCLIP_CONTEXT: envEntries.PAPERCLIP_CONTEXT } : {}),
+    STAPLER_CONFIG: configPath,
+    ...(envEntries.STAPLER_HOME ? { STAPLER_HOME: envEntries.STAPLER_HOME } : {}),
+    ...(envEntries.STAPLER_INSTANCE_ID ? { STAPLER_INSTANCE_ID: envEntries.STAPLER_INSTANCE_ID } : {}),
+    ...(envEntries.STAPLER_CONTEXT ? { STAPLER_CONTEXT: envEntries.STAPLER_CONTEXT } : {}),
     ...envEntries,
   };
 
@@ -2549,7 +2548,7 @@ async function promptForSourceEndpoint(excludeWorktreePath?: string): Promise<Re
       hint: `${choice.worktree}${choice.isCurrent ? " (current)" : ""}`,
     }));
   if (choices.length === 0) {
-    throw new Error("No Paperclip worktrees were found. Run `paperclipai worktree:list` to inspect the repo worktrees.");
+    throw new Error("No Stapler worktrees were found. Run `stapler worktree:list` to inspect the repo worktrees.");
   }
   const selection = await p.select<string>({
     message: "Choose the source worktree to import from",
@@ -3155,14 +3154,14 @@ async function runWorktreeReseed(opts: WorktreeReseedOptions): Promise<void> {
 }
 
 export async function worktreeReseedCommand(opts: WorktreeReseedOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree reseed ")));
+  printStaplerCliBanner();
+  p.intro(pc.bgCyan(pc.black(" stapler worktree reseed ")));
   await runWorktreeReseed(opts);
 }
 
 export async function worktreeRepairCommand(opts: WorktreeRepairOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai worktree repair ")));
+  printStaplerCliBanner();
+  p.intro(pc.bgCyan(pc.black(" stapler worktree repair ")));
 
   const seedMode = opts.seedMode ?? "minimal";
   if (!isWorktreeSeedMode(seedMode)) {
@@ -3191,7 +3190,7 @@ export async function worktreeRepairCommand(opts: WorktreeRepairOptions): Promis
   const targetConfig = existsSync(target.configPath) ? readConfig(target.configPath) : null;
   const targetEnvEntries = readPaperclipEnvEntries(resolvePaperclipEnvFile(target.configPath));
   const targetHasWorktreeEnv = Boolean(
-    nonEmpty(targetEnvEntries.PAPERCLIP_HOME) && nonEmpty(targetEnvEntries.PAPERCLIP_INSTANCE_ID),
+    nonEmpty(targetEnvEntries.STAPLER_HOME) && nonEmpty(targetEnvEntries.STAPLER_INSTANCE_ID),
   );
 
   if (targetConfig && targetHasWorktreeEnv && opts.noSeed) {
@@ -3253,11 +3252,11 @@ export function registerWorktreeCommands(program: Command): void {
     .command("worktree:make")
     .description("Create ~/NAME as a git worktree, then initialize an isolated Paperclip instance inside it")
     .argument("<name>", "Worktree name — auto-prefixed with paperclip- if needed (created at ~/paperclip-NAME)")
-    .option("--start-point <ref>", "Remote ref to base the new branch on (env: PAPERCLIP_WORKTREE_START_POINT)")
+    .option("--start-point <ref>", "Remote ref to base the new branch on (env: STAPLER_WORKTREE_START_POINT)")
     .option("--instance <id>", "Explicit isolated instance id")
-    .option("--home <path>", `Home root for worktree instances (env: PAPERCLIP_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
+    .option("--home <path>", `Home root for worktree instances (env: STAPLER_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
     .option("--from-config <path>", "Source config.json to seed from")
-    .option("--from-data-dir <path>", "Source PAPERCLIP_HOME used when deriving the source config")
+    .option("--from-data-dir <path>", "Source STAPLER_HOME used when deriving the source config")
     .option("--from-instance <id>", "Source instance id when deriving the source config", "default")
     .option("--server-port <port>", "Preferred server port", (value) => Number(value))
     .option("--db-port <port>", "Preferred embedded Postgres port", (value) => Number(value))
@@ -3272,9 +3271,9 @@ export function registerWorktreeCommands(program: Command): void {
     .description("Create repo-local config/env and an isolated instance for this worktree")
     .option("--name <name>", "Display name used to derive the instance id")
     .option("--instance <id>", "Explicit isolated instance id")
-    .option("--home <path>", `Home root for worktree instances (env: PAPERCLIP_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
+    .option("--home <path>", `Home root for worktree instances (env: STAPLER_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
     .option("--from-config <path>", "Source config.json to seed from")
-    .option("--from-data-dir <path>", "Source PAPERCLIP_HOME used when deriving the source config")
+    .option("--from-data-dir <path>", "Source STAPLER_HOME used when deriving the source config")
     .option("--from-instance <id>", "Source instance id when deriving the source config", "default")
     .option("--server-port <port>", "Preferred server port", (value) => Number(value))
     .option("--db-port <port>", "Preferred embedded Postgres port", (value) => Number(value))
@@ -3316,7 +3315,7 @@ export function registerWorktreeCommands(program: Command): void {
     .option("--from <worktree>", "Source worktree path, directory name, branch name, or current")
     .option("--to <worktree>", "Target worktree path, directory name, branch name, or current (defaults to current)")
     .option("--from-config <path>", "Source config.json to seed from")
-    .option("--from-data-dir <path>", "Source PAPERCLIP_HOME used when deriving the source config")
+    .option("--from-data-dir <path>", "Source STAPLER_HOME used when deriving the source config")
     .option("--from-instance <id>", "Source instance id when deriving the source config")
     .option("--seed-mode <mode>", "Seed profile: minimal or full (default: full)", "full")
     .option("--preserve-live-work", "Do not quarantine copied agent timers or assigned open issues in the seeded worktree", false)
@@ -3328,9 +3327,9 @@ export function registerWorktreeCommands(program: Command): void {
     .command("repair")
     .description("Create or repair a linked worktree-local Paperclip instance without touching the primary checkout")
     .option("--branch <name>", "Existing branch/worktree selector to repair, or a branch name to create under .paperclip/worktrees")
-    .option("--home <path>", `Home root for worktree instances (env: PAPERCLIP_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
+    .option("--home <path>", `Home root for worktree instances (env: STAPLER_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
     .option("--from-config <path>", "Source config.json to seed from")
-    .option("--from-data-dir <path>", "Source PAPERCLIP_HOME used when deriving the source config")
+    .option("--from-data-dir <path>", "Source STAPLER_HOME used when deriving the source config")
     .option("--from-instance <id>", "Source instance id when deriving the source config (default: default)")
     .option("--seed-mode <mode>", "Seed profile: minimal or full (default: minimal)", "minimal")
     .option("--preserve-live-work", "Do not quarantine copied agent timers or assigned open issues in the seeded worktree", false)
@@ -3343,7 +3342,7 @@ export function registerWorktreeCommands(program: Command): void {
     .description("Safely remove a worktree, its branch, and its isolated instance data")
     .argument("<name>", "Worktree name — auto-prefixed with paperclip- if needed")
     .option("--instance <id>", "Explicit instance id (if different from the worktree name)")
-    .option("--home <path>", `Home root for worktree instances (env: PAPERCLIP_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
+    .option("--home <path>", `Home root for worktree instances (env: STAPLER_WORKTREES_DIR, default: ${DEFAULT_WORKTREE_HOME})`)
     .option("--force", "Bypass safety checks (uncommitted changes, unique commits)", false)
     .action(worktreeCleanupCommand);
 }

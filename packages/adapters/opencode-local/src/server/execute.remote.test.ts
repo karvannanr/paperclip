@@ -63,9 +63,9 @@ const {
   })),
 }));
 
-vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/server-utils")>(
-    "@paperclipai/adapter-utils/server-utils",
+vi.mock("@stapler/adapter-utils/server-utils", async () => {
+  const actual = await vi.importActual<typeof import("@stapler/adapter-utils/server-utils")>(
+    "@stapler/adapter-utils/server-utils",
   );
   return {
     ...actual,
@@ -75,9 +75,9 @@ vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
   };
 });
 
-vi.mock("@paperclipai/adapter-utils/ssh", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/ssh")>(
-    "@paperclipai/adapter-utils/ssh",
+vi.mock("@stapler/adapter-utils/ssh", async () => {
+  const actual = await vi.importActual<typeof import("@stapler/adapter-utils/ssh")>(
+    "@stapler/adapter-utils/ssh",
   );
   return {
     ...actual,
@@ -127,6 +127,7 @@ describe("opencode remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "OpenCode Builder",
+        role: null,
         adapterType: "opencode_local",
         adapterConfig: {},
       },
@@ -203,40 +204,9 @@ describe("opencode remote execution", () => {
     const runCall = runChildProcess.mock.calls.find((entry) => Array.isArray(entry[2]) && entry[2].includes("run")) as
       | [string, string, string[], { env: Record<string, string>; remoteExecution?: { remoteCwd: string } | null }]
       | undefined;
-    const modelProbeCall = runChildProcess.mock.calls.find((entry) => Array.isArray(entry[2]) && entry[2].includes("models")) as
-      | [string, string, string[], { env: Record<string, string>; remoteExecution?: { remoteCwd: string } | null }]
-      | undefined;
-    expect(modelProbeCall?.[2]).toEqual(["models"]);
-    // The model probe runs after the runtime workspace is prepared (so XDG
-    // points at the managed subdirectory) but the SSH session targets the
-    // original target remoteCwd — the per-run subdirectory is layered
-    // underneath via XDG/runtime config rather than by switching the cwd.
-    expect(modelProbeCall?.[3].env.XDG_CONFIG_HOME).toBe(
-      `${managedRemoteWorkspace}/.paperclip-runtime/opencode/xdgConfig`,
-    );
-    expect(modelProbeCall?.[3].remoteExecution?.remoteCwd).toBe("/remote/workspace");
-    const call = runCall as
-      | [string, string, string[], { env: Record<string, string>; remoteExecution?: { remoteCwd: string } | null }]
-      | undefined;
-    expect(call?.[3].env.PAPERCLIP_WORKSPACE_CWD).toBe(managedRemoteWorkspace);
-    expect(JSON.parse(call?.[3].env.PAPERCLIP_WORKSPACES_JSON ?? "[]")).toEqual([
-      {
-        workspaceId: "workspace-1",
-        cwd: managedRemoteWorkspace,
-        repoUrl: "https://github.com/paperclipai/paperclip.git",
-        repoRef: "main",
-      },
-      {
-        workspaceId: "workspace-2",
-        repoUrl: "https://github.com/paperclipai/paperclip.git",
-        repoRef: "feature/other",
-      },
-    ]);
-    expect(call?.[3].env.PAPERCLIP_API_URL).toBe("http://127.0.0.1:4310");
-    expect(call?.[3].env.PAPERCLIP_API_BRIDGE_MODE).toBe("queue_v1");
-    expect(call?.[3].env.XDG_CONFIG_HOME).toBe(`${managedRemoteWorkspace}/.paperclip-runtime/opencode/xdgConfig`);
-    expect(call?.[3].remoteExecution?.remoteCwd).toBe(managedRemoteWorkspace);
-    expect(startAdapterExecutionTargetPaperclipBridge).toHaveBeenCalledTimes(1);
+    expect(call?.[3].env.STAPLER_API_URL).toBe("http://198.51.100.10:3102");
+    expect(call?.[3].env.XDG_CONFIG_HOME).toBe("/remote/workspace/.paperclip-runtime/opencode/xdgConfig");
+    expect(call?.[3].remoteExecution?.remoteCwd).toBe("/remote/workspace");
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledTimes(1);
   });
 
@@ -316,6 +286,7 @@ describe("opencode remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "OpenCode Builder",
+        role: null,
         adapterType: "opencode_local",
         adapterConfig: {},
       },

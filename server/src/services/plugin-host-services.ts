@@ -1,4 +1,4 @@
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import {
   activityLog,
   agentTaskSessions as agentTaskSessionsTable,
@@ -9,10 +9,8 @@ import {
   invites,
   issues as issuesTable,
   pluginLogs,
-  principalPermissionGrants,
-  projects as projectsTable,
-} from "@paperclipai/db";
-import { eq, and, like, desc, inArray, sql, isNull, isNotNull, gt, lte } from "drizzle-orm";
+} from "@stapler/db";
+import { eq, and, like, desc, inArray, sql } from "drizzle-orm";
 import type {
   HostServices,
   Company,
@@ -24,10 +22,10 @@ import type {
   IssueComment,
   PluginIssueAssigneeSummary,
   PluginIssueOrchestrationSummary,
-  PluginExecutionWorkspaceMetadata,
-} from "@paperclipai/plugin-sdk";
-import type { CreateIssueThreadInteraction, InviteJoinType, IssueDocumentSummary, PermissionKey, PrincipalType } from "@paperclipai/shared";
-import { pluginOperationIssueOriginKind } from "@paperclipai/shared";
+} from "@stapler/plugin-sdk";
+import type { CreateIssueThreadInteraction, IssueDocumentSummary, IssueCustomFieldType } from "@stapler/shared";
+import { issueCustomFieldService } from "./issue-custom-fields.js";
+import { createPluginRuntimeConfigService } from "./plugin-runtime-config.js";
 import { companyService } from "./companies.js";
 import { agentService } from "./agents.js";
 import { projectService } from "./projects.js";
@@ -534,6 +532,9 @@ export function buildHostServices(
   const authorization = authorizationService(db);
   const budgets = budgetService(db);
   const issueApprovals = issueApprovalService(db);
+  const assets = assetService(db);
+  const issueCustomFields = issueCustomFieldService(db);
+  const runtimeConfig = createPluginRuntimeConfigService(db);
   const scopedBus = eventBus.forPlugin(pluginKey);
 
   // Track active session event subscriptions for cleanup
@@ -583,24 +584,16 @@ export function buildHostServices(
    */
   const ensurePluginAvailableForCompany = async (_companyId: string) => {};
 
-  const getLocalFolderDeclaration = (folderKey: string) =>
-    requireLocalFolderDeclaration(options.manifest?.localFolders, folderKey);
-
-  const getStoredLocalFolderConfig = async (companyId: string, folderKey: string) => {
-    ensureCompanyId(companyId);
-    await ensurePluginAvailableForCompany(companyId);
-    const settings = await registry.getCompanySettings(pluginId, companyId);
-    return getStoredLocalFolders(settings?.settingsJson)[folderKey] ?? null;
+  const ensurePluginCapability = async (capability: string) => {
+    const pluginRow = await registry.getById(pluginId);
+    const caps = (pluginRow?.manifestJson as { capabilities?: string[] } | null)?.capabilities ?? [];
+    if (!caps.includes(capability)) {
+      throw new Error(`Plugin '${pluginKey}' does not have required capability '${capability}'`);
+    }
+    return pluginRow;
   };
 
-  const inspectStoredLocalFolder = async (companyId: string, folderKey: string) =>
-    inspectPluginLocalFolder({
-      folderKey,
-      declaration: getLocalFolderDeclaration(folderKey),
-      storedConfig: await getStoredLocalFolderConfig(companyId, folderKey),
-    });
-
-  const inCompany = <T extends { companyId: string | null | undefined }>(
+  const inCompany =<T extends { companyId: string | null | undefined }>(
     record: T | null | undefined,
     companyId: string,
   ): record is T => Boolean(record && record.companyId === companyId);
@@ -1057,6 +1050,17 @@ export function buildHostServices(
         const configRow = await registry.getConfig(pluginId);
         return configRow?.configJson ?? {};
       },
+      runtime: {
+        async get() {
+          return runtimeConfig.getRuntime(pluginId);
+        },
+        async set(params: { patch: Record<string, unknown> }) {
+          return runtimeConfig.setRuntime(pluginId, params.patch);
+        },
+        async unset(params: { key: string }) {
+          return runtimeConfig.unsetRuntime(pluginId, params.key);
+        },
+      },
     },
 
     localFolders: {
@@ -1197,7 +1201,7 @@ export function buildHostServices(
         await scopedBus.emit(params.name, params.companyId, params.payload);
       },
       async subscribe(params: { eventPattern: string; filter?: Record<string, unknown> | null }) {
-        const handler = async (event: import("@paperclipai/plugin-sdk").PluginEvent) => {
+        const handler = async (event: import("@stapler/plugin-sdk").PluginEvent) => {
           if (notifyWorker) {
             notifyWorker("onEvent", { event });
           }
@@ -1231,6 +1235,12 @@ export function buildHostServices(
     secrets: {
       async resolve(params) {
         return secretsHandler.resolve(params);
+      },
+      async write(params) {
+        return secretsHandler.write(params);
+      },
+      async delete(params) {
+        return secretsHandler.delete(params);
       },
     },
 
@@ -2712,6 +2722,75 @@ export function buildHostServices(
           .returning()
           .then((rows) => rows.length);
         if (deleted === 0) throw new Error(`Session not found: ${params.sessionId}`);
+      },
+    },
+
+    issueCustomFields: {
+      async set(params) {
+        const companyId = ensureCompanyId(params.companyId);
+        await ensurePluginAvailableForCompany(companyId);
+        const pluginRow = await ensurePluginCapability("issue.custom-fields.write");
+        const manifest = pluginRow?.manifestJson as { customFields?: Array<{ key: string; label: string; type: string; enumValues?: Array<{ id: string; label: string }> }> } | null;
+        const fieldDecl = manifest?.customFields?.find((f) => f.key === params.key);
+        if (!fieldDecl) {
+          throw new Error(`Plugin has no custom field declared with key '${params.key}'`);
+        }
+        if (fieldDecl.type === "enum-ref") {
+          const allowed = (fieldDecl.enumValues ?? []).map((e) => e.id);
+          if (!allowed.includes(params.value)) {
+            throw new Error(
+              `Value '${params.value}' is not a declared enum option for field '${params.key}'`,
+            );
+          }
+        }
+        await issueCustomFields.set({
+          companyId,
+          issueId: params.issueId,
+          pluginId,
+          key: params.key,
+          value: params.value,
+          fieldType: fieldDecl.type as IssueCustomFieldType,
+          fieldLabel: fieldDecl.label,
+        });
+        await logPluginActivity({
+          companyId,
+          action: "issue.custom_field_set",
+          entityType: "issue",
+          entityId: params.issueId,
+          details: { fieldKey: params.key, fieldType: fieldDecl.type, fieldLabel: fieldDecl.label },
+        });
+      },
+      async unset(params) {
+        const companyId = ensureCompanyId(params.companyId);
+        await ensurePluginAvailableForCompany(companyId);
+        await ensurePluginCapability("issue.custom-fields.write");
+        const didUnset = await issueCustomFields.unset({
+          companyId,
+          issueId: params.issueId,
+          pluginId,
+          key: params.key,
+        });
+        if (didUnset) {
+          await logPluginActivity({
+            companyId,
+            action: "issue.custom_field_unset",
+            entityType: "issue",
+            entityId: params.issueId,
+            details: { fieldKey: params.key },
+          });
+        }
+      },
+      async listForIssue(params) {
+        const companyId = ensureCompanyId(params.companyId);
+        await ensurePluginAvailableForCompany(companyId);
+        const pluginRow = await ensurePluginCapability("issue.custom-fields.read");
+        const fields = await issueCustomFields.listForIssue({
+          companyId,
+          issueId: params.issueId,
+          pluginId,
+        });
+        const displayName = (pluginRow?.manifestJson as { displayName?: string })?.displayName ?? pluginKey;
+        return fields.map((f) => ({ ...f, pluginKey, pluginDisplayName: displayName }));
       },
     },
 

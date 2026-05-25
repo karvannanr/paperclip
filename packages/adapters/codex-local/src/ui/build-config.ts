@@ -1,4 +1,4 @@
-import type { CreateConfigValues } from "@paperclipai/adapter-utils";
+import type { CreateConfigValues } from "@stapler/adapter-utils";
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
   DEFAULT_CODEX_LOCAL_MODEL,
@@ -72,7 +72,7 @@ export function buildCodexLocalConfig(v: CreateConfigValues): Record<string, unk
   if (v.instructionsFilePath) ac.instructionsFilePath = v.instructionsFilePath;
   ac.model = v.model || DEFAULT_CODEX_LOCAL_MODEL;
   if (v.thinkingEffort) ac.modelReasoningEffort = v.thinkingEffort;
-  ac.timeoutSec = 0;
+  ac.timeoutSec = 1800;
   ac.graceSec = 15;
   const env = parseEnvBindings(v.envBindings);
   const legacy = parseEnvVars(v.envVars);

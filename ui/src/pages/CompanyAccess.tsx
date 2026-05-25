@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   HUMAN_COMPANY_MEMBERSHIP_ROLE_LABELS,
   type Agent,
-} from "@paperclipai/shared";
-import { Shield, ShieldCheck, Trash2, Users } from "lucide-react";
+  type PermissionKey,
+} from "@stapler/shared";
+import { ShieldCheck, Trash2, Users } from "lucide-react";
 import { accessApi, type CompanyMember } from "@/api/access";
 import { agentsApi } from "@/api/agents";
 import { ApiError } from "@/api/client";

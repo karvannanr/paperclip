@@ -27,6 +27,14 @@ export {
   type UpdateCompanyBranding,
 } from "./company.js";
 export {
+  createCompanyDocumentSchema,
+  updateCompanyDocumentSchema,
+  restoreCompanyDocumentRevisionSchema,
+  type CreateCompanyDocument,
+  type UpdateCompanyDocument,
+  type RestoreCompanyDocumentRevision,
+} from "./document.js";
+export {
   environmentDriverSchema,
   environmentStatusSchema,
   environmentLeaseStatusSchema,
@@ -268,8 +276,10 @@ export {
 export {
   createGoalSchema,
   updateGoalSchema,
+  goalAcceptanceCriterionSchema,
   type CreateGoal,
   type UpdateGoal,
+  type GoalAcceptanceCriterionInput,
 } from "./goal.js";
 
 export {
@@ -408,6 +418,8 @@ export {
   pluginManagedSkillFileDeclarationSchema,
   pluginManagedSkillDeclarationSchema,
   pluginApiRouteDeclarationSchema,
+  pluginCustomFieldEnumValueSchema,
+  pluginCustomFieldDeclarationSchema,
   pluginManifestV1Schema,
   installPluginSchema,
   upsertPluginConfigSchema,
@@ -429,6 +441,7 @@ export {
   type PluginManagedSkillFileDeclarationInput,
   type PluginManagedSkillDeclarationInput,
   type PluginApiRouteDeclarationInput,
+  type PluginCustomFieldDeclarationInput,
   type PluginManifestV1Input,
   type InstallPlugin,
   type UpsertPluginConfig,
@@ -439,3 +452,23 @@ export {
   type SetPluginState,
   type ListPluginState,
 } from "./plugin.js";
+export {
+  createAgentMemorySchema,
+  listAgentMemoriesQuerySchema,
+  agentMemoryTagsSchema,
+  MAX_AGENT_MEMORY_CONTENT_CHARS,
+  MAX_AGENT_MEMORY_TAGS,
+  MAX_AGENT_MEMORY_TAG_LENGTH,
+  type CreateAgentMemoryInput,
+  type ListAgentMemoriesQuery,
+} from "./agent-memory.js";
+export {
+  createEvalSuiteSchema,
+  updateEvalSuiteSchema,
+  createEvalCaseSchema,
+  triggerEvalRunSchema,
+  type CreateEvalSuite,
+  type UpdateEvalSuite,
+  type CreateEvalCase,
+  type TriggerEvalRun,
+} from "./eval.js";

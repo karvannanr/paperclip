@@ -10,9 +10,9 @@ import type {
   IssueLabel,
   Project,
   WorkspaceRuntimeService,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IssueProperties } from "./IssueProperties";
 
@@ -168,6 +168,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     startedAt: null,
     completedAt: null,
     cancelledAt: null,
+    scheduledFor: null,
     hiddenAt: null,
     labels: [],
     labelIds: [],

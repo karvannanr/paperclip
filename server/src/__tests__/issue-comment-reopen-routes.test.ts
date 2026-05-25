@@ -76,7 +76,7 @@ const mockIssueTreeControlService = vi.hoisted(() => ({
   getActivePauseHoldGate: vi.fn(async () => null),
 }));
 
-vi.mock("@paperclipai/shared/telemetry", () => ({
+vi.mock("@stapler/shared/telemetry", () => ({
   trackAgentTaskCompleted: vi.fn(),
   trackErrorHandlerCrash: vi.fn(),
 }));
@@ -374,7 +374,7 @@ describe.sequential("issue comment reopen routes", () => {
     );
   });
 
-  it("implicitly reopens closed issues via the PATCH comment path when reassigning to an agent", async () => {
+  it("does NOT implicitly reopen done issues via the PATCH comment path when reassigning to an agent", async () => {
     mockIssueService.getById.mockResolvedValue(makeIssue("done"));
     mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) => ({
       ...makeIssue("done"),
@@ -386,25 +386,20 @@ describe.sequential("issue comment reopen routes", () => {
       .send({ comment: "hello", assigneeAgentId: "33333333-3333-4333-8333-333333333333" });
 
     expect(res.status).toBe(200);
+    // Done issues require an explicit reopen: true; a comment alone must not
+    // silently transition a terminal decision (prevents routine board comments
+    // from auto-reopening closed work).
     expect(mockIssueService.update).toHaveBeenCalledWith(
       "11111111-1111-4111-8111-111111111111",
       expect.objectContaining({
         assigneeAgentId: "33333333-3333-4333-8333-333333333333",
-        status: "todo",
         actorAgentId: null,
         actorUserId: "local-board",
       }),
     );
-    expect(mockLogActivity).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        action: "issue.updated",
-        details: expect.objectContaining({
-          reopened: true,
-          reopenedFrom: "done",
-          status: "todo",
-        }),
-      }),
+    expect(mockIssueService.update).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.not.objectContaining({ status: "todo" }),
     );
   });
 
@@ -486,7 +481,7 @@ describe.sequential("issue comment reopen routes", () => {
     );
   });
 
-  it("implicitly reopens closed issues via POST comments when an agent is assigned", async () => {
+  it("does NOT implicitly reopen done issues via POST comments when an agent is assigned", async () => {
     mockIssueService.getById.mockResolvedValue(makeIssue("done"));
     mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) => ({
       ...makeIssue("done"),
@@ -497,20 +492,13 @@ describe.sequential("issue comment reopen routes", () => {
       .post("/api/issues/11111111-1111-4111-8111-111111111111/comments")
       .send({ body: "hello" });
 
+    // Done/cancelled issues must not auto-reopen from a plain board comment;
+    // prevents routine board comments from silently reverting terminal decisions.
     expect(res.status).toBe(201);
-    expect(mockIssueService.update).toHaveBeenCalledWith(
+    expect(mockIssueService.update).not.toHaveBeenCalledWith(
       "11111111-1111-4111-8111-111111111111",
-      { status: "todo" },
+      expect.objectContaining({ status: "todo" }),
     );
-    await waitForWakeup(() => expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(
-      "22222222-2222-4222-8222-222222222222",
-      expect.objectContaining({
-        reason: "issue_reopened_via_comment",
-        payload: expect.objectContaining({
-          reopenedFrom: "done",
-        }),
-      }),
-    ));
   });
 
   it("rejects non-assignee agent POST comments on closed issues", async () => {

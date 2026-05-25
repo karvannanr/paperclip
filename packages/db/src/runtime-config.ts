@@ -37,6 +37,39 @@ export type ResolvedDatabaseTarget =
       envPath: string;
     };
 
+function expandHomePrefix(value: string): string {
+  if (value === "~") return os.homedir();
+  if (value.startsWith("~/")) return path.resolve(os.homedir(), value.slice(2));
+  return value;
+}
+
+function resolvePaperclipHomeDir(): string {
+  const envHome = process.env.STAPLER_HOME?.trim();
+  if (envHome) return path.resolve(expandHomePrefix(envHome));
+  return path.resolve(os.homedir(), ".paperclip");
+}
+
+function resolvePaperclipInstanceId(): string {
+  const raw = process.env.STAPLER_INSTANCE_ID?.trim() || DEFAULT_INSTANCE_ID;
+  if (!INSTANCE_ID_RE.test(raw)) {
+    throw new Error(`Invalid STAPLER_INSTANCE_ID '${raw}'.`);
+  }
+  return raw;
+}
+
+function resolveDefaultConfigPath(): string {
+  return path.resolve(
+    resolvePaperclipHomeDir(),
+    "instances",
+    resolvePaperclipInstanceId(),
+    CONFIG_BASENAME,
+  );
+}
+
+function resolveDefaultEmbeddedPostgresDir(): string {
+  return path.resolve(resolvePaperclipHomeDir(), "instances", resolvePaperclipInstanceId(), "db");
+}
+
 function resolveHomeAwarePath(value: string): string {
   return path.resolve(expandHomePrefix(value));
 }
@@ -55,8 +88,8 @@ function findConfigFileFromAncestors(startDir: string): string | null {
 }
 
 function resolvePaperclipConfigPath(): string {
-  if (process.env.PAPERCLIP_CONFIG?.trim()) {
-    return path.resolve(process.env.PAPERCLIP_CONFIG.trim());
+  if (process.env.STAPLER_CONFIG?.trim()) {
+    return path.resolve(process.env.STAPLER_CONFIG.trim());
   }
   return findConfigFileFromAncestors(process.cwd()) ?? resolvePaperclipConfigPathForInstance();
 }

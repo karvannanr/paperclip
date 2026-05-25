@@ -7,7 +7,9 @@ import {
   createDb,
   environmentLeases,
   environments,
-} from "@paperclipai/db";
+  heartbeatRunEvents,
+  heartbeatRuns,
+} from "@stapler/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,

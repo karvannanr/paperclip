@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, not, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
+import type { Db } from "@stapler/db";
 import {
   agents,
   companySecretBindings,
@@ -19,7 +19,7 @@ import {
   routineRuns,
   routines,
   routineTriggers,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import type {
   CreateRoutine,
   CreateRoutineTrigger,
@@ -36,7 +36,7 @@ import type {
   RunRoutine,
   UpdateRoutine,
   UpdateRoutineTrigger,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import {
   WORKSPACE_BRANCH_ROUTINE_VARIABLE,
   getBuiltinRoutineVariableValues,
@@ -45,8 +45,8 @@ import {
   pluginOperationIssueOriginKind,
   stringifyRoutineVariableValue,
   syncRoutineVariablesWithTemplate,
-} from "@paperclipai/shared";
-import { trackRoutineRun } from "@paperclipai/shared/telemetry";
+} from "@stapler/shared";
+import { trackRoutineRun } from "@stapler/shared/telemetry";
 import { conflict, forbidden, notFound, unauthorized, unprocessable } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { getTelemetryClient } from "../telemetry.js";
@@ -1519,6 +1519,22 @@ export function routineService(
     },
 
     create: async (companyId: string, input: CreateRoutine, actor: Actor): Promise<Routine> => {
+      const existingWithTitle = await db
+        .select({ id: routines.id })
+        .from(routines)
+        .where(
+          and(
+            eq(routines.companyId, companyId),
+            sql`lower(${routines.title}) = lower(${input.title})`,
+            ne(routines.status, "archived"),
+          ),
+        )
+        .limit(1);
+      if (existingWithTitle.length > 0) {
+        throw conflict("A routine with this title already exists", {
+          conflictingRoutineId: existingWithTitle[0]!.id,
+        });
+      }
       await assertProject(companyId, input.projectId ?? null);
       await assertAssignableAgent(companyId, input.assigneeAgentId ?? null);
       if (input.goalId) await assertGoal(companyId, input.goalId);
@@ -1750,7 +1766,7 @@ export function routineService(
         const created = await createWebhookSecret(routine.companyId, routine.id, actor);
         secretId = created.secret.id;
         secretMaterial = {
-          webhookUrl: `${process.env.PAPERCLIP_API_URL}/api/routine-triggers/public/${publicId}/fire`,
+          webhookUrl: `${process.env.STAPLER_API_URL}/api/routine-triggers/public/${publicId}/fire`,
           webhookSecret: created.secretValue,
         };
       }
@@ -1923,7 +1939,7 @@ export function routineService(
       return {
         trigger: trigger as RoutineTrigger,
         secretMaterial: {
-          webhookUrl: `${process.env.PAPERCLIP_API_URL}/api/routine-triggers/public/${existing.publicId}/fire`,
+          webhookUrl: `${process.env.STAPLER_API_URL}/api/routine-triggers/public/${existing.publicId}/fire`,
           webhookSecret: secretValue,
         },
         revision,

@@ -6,8 +6,8 @@ import type {
   CompanySecret,
   EnvBinding,
   Environment,
-} from "@paperclipai/shared";
-import { AGENT_DEFAULT_MAX_CONCURRENT_RUNS, supportedEnvironmentDriversForAdapter } from "@paperclipai/shared";
+} from "@stapler/shared";
+import { AGENT_DEFAULT_MAX_CONCURRENT_RUNS, supportedEnvironmentDriversForAdapter } from "@stapler/shared";
 import type { AdapterModel } from "../api/agents";
 import { agentsApi } from "../api/agents";
 import { environmentsApi } from "../api/environments";
@@ -17,10 +17,9 @@ import { assetsApi } from "../api/assets";
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
   DEFAULT_CODEX_LOCAL_MODEL,
-} from "@paperclipai/adapter-codex-local";
-import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
-import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@paperclipai/adapter-opencode-local";
+} from "@stapler/adapter-codex-local";
+import { DEFAULT_CURSOR_LOCAL_MODEL } from "@stapler/adapter-cursor-local";
+import { DEFAULT_GEMINI_LOCAL_MODEL } from "@stapler/adapter-gemini-local";
 import {
   Popover,
   PopoverContent,
@@ -61,10 +60,10 @@ import { filterAcpxModelsByAgent } from "../lib/acpx-model-filter";
 
 /* ---- Create mode values ---- */
 
-// Canonical type lives in @paperclipai/adapter-utils; re-exported here
+// Canonical type lives in @stapler/adapter-utils; re-exported here
 // so existing imports from this file keep working.
-export type { CreateConfigValues } from "@paperclipai/adapter-utils";
-import type { CreateConfigValues } from "@paperclipai/adapter-utils";
+export type { CreateConfigValues } from "@stapler/adapter-utils";
+import type { CreateConfigValues } from "@stapler/adapter-utils";
 
 /* ---- Props ---- */
 
@@ -752,7 +751,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 }}
               />
             </Field>
-            {isLocal && !props.hidePromptTemplate && (
+            {!props.hidePromptTemplate && (
               <>
                 <Field label="Prompt Template" hint={help.promptTemplate}>
                   <MarkdownEditor
@@ -938,13 +937,13 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       </div>
 
       {/* ---- Permissions & Configuration ---- */}
-      {isLocal && (
         <div className={cn(!cards && "border-b border-border")}>
           {cards
             ? <h3 className="text-sm font-medium mb-3">Permissions &amp; Configuration</h3>
             : <div className="px-4 py-2 text-xs font-medium text-muted-foreground">Permissions &amp; Configuration</div>
           }
           <div className={cn(cards ? "border border-border rounded-lg p-4 space-y-3" : "px-4 pb-3 space-y-3")}>
+            {isLocal && (
               <Field label="Command" hint={help.localCommand}>
                 <DraftInput
                   value={
@@ -979,6 +978,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                   }
                 />
               </Field>
+            )}
 
               {supportsModelProfiles && (
                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Primary model</div>
@@ -1167,7 +1167,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
               )}
           </div>
         </div>
-      )}
 
       {/* ---- Run Policy ---- */}
       {isCreate && showCreateRunPolicySection ? (

@@ -3,13 +3,13 @@ import type { IncomingHttpHeaders } from "node:http";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { toNodeHandler } from "better-auth/node";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import {
   authAccounts,
   authSessions,
   authUsers,
   authVerifications,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import type { Config } from "../config.js";
 import { resolvePaperclipInstanceId } from "../home-paths.js";
 
@@ -114,21 +114,15 @@ export function deriveAuthTrustedOrigins(config: Config, opts?: { listenPort?: n
 
 export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins: string[]): BetterAuthInstance {
   const baseUrl = config.authBaseUrlMode === "explicit" ? config.authPublicBaseUrl : undefined;
-  const publicUrl = process.env.PAPERCLIP_PUBLIC_URL?.trim() || baseUrl;
-  const secret = process.env.BETTER_AUTH_SECRET ?? process.env.PAPERCLIP_AGENT_JWT_SECRET;
+  const secret = process.env.BETTER_AUTH_SECRET ?? process.env.STAPLER_AGENT_JWT_SECRET;
   if (!secret) {
     throw new Error(
-      "BETTER_AUTH_SECRET (or PAPERCLIP_AGENT_JWT_SECRET) must be set. " +
+      "BETTER_AUTH_SECRET (or STAPLER_AGENT_JWT_SECRET) must be set. " +
       "For local development, set BETTER_AUTH_SECRET=paperclip-dev-secret in your .env file.",
     );
   }
-  const disableSecureCookies = shouldDisableSecureAuthCookies({
-    deploymentMode: config.deploymentMode,
-    deploymentExposure: config.deploymentExposure,
-    authBaseUrlMode: config.authBaseUrlMode,
-    authPublicBaseUrl: config.authPublicBaseUrl,
-    publicUrl,
-  });
+  const publicUrl = process.env.STAPLER_PUBLIC_URL ?? baseUrl;
+  const isHttpOnly = publicUrl ? publicUrl.startsWith("http://") : false;
 
   const authConfig = {
     baseURL: baseUrl,

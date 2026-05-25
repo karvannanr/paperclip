@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 import {
   applyIssueFilters,
   countActiveIssueFilters,
@@ -41,6 +41,7 @@ function makeIssue(overrides: Partial<Issue> = {}): Issue {
     startedAt: null,
     completedAt: null,
     cancelledAt: null,
+    scheduledFor: null,
     hiddenAt: null,
     labels: [],
     labelIds: [],

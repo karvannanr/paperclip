@@ -1,4 +1,4 @@
-import { asNumber, asString, parseJson, parseObject } from "@paperclipai/adapter-utils/server-utils";
+import { asNumber, asString, parseJson, parseObject } from "@stapler/adapter-utils/server-utils";
 
 function collectMessageText(message: unknown): string[] {
   if (typeof message === "string") {
@@ -206,7 +206,7 @@ export function isGeminiUnknownSessionError(stdout: string, stderr: string): boo
     .filter(Boolean)
     .join("\n");
 
-  return /unknown\s+session|session\s+.*\s+not\s+found|resume\s+.*\s+not\s+found|checkpoint\s+.*\s+not\s+found|cannot\s+resume|failed\s+to\s+resume/i.test(
+  return /unknown\s+session|invalid\s+session|session\s+.*\s+not\s+found|resume\s+.*\s+not\s+found|checkpoint\s+.*\s+not\s+found|cannot\s+resume|failed\s+to\s+resume/i.test(
     haystack,
   );
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 import {
   applyLocalQueuedIssueCommentState,
   applyOptimisticIssueFieldUpdate,
@@ -467,6 +467,7 @@ describe("optimistic issue comments", () => {
         executionWorkspaceId: null,
         executionWorkspacePreference: null,
         executionWorkspaceSettings: null,
+        scheduledFor: null,
         startedAt: null,
         completedAt: null,
         cancelledAt: null,
@@ -644,6 +645,7 @@ describe("optimistic issue comments", () => {
         },
         createdAt: new Date("2026-03-28T14:00:00.000Z"),
         updatedAt: new Date("2026-03-28T14:00:00.000Z"),
+        scheduledFor: null,
       },
       {
         status: "in_review",
@@ -720,6 +722,7 @@ describe("optimistic issue comments", () => {
         blocks: [],
         createdAt: new Date("2026-03-28T14:00:00.000Z"),
         updatedAt: new Date("2026-03-28T14:00:00.000Z"),
+        scheduledFor: null,
       },
       {
         id: "issue-2",
@@ -762,6 +765,7 @@ describe("optimistic issue comments", () => {
         blocks: [],
         createdAt: new Date("2026-03-28T14:00:00.000Z"),
         updatedAt: new Date("2026-03-28T14:00:00.000Z"),
+        scheduledFor: null,
       },
     ];
 

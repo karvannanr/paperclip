@@ -36,9 +36,9 @@ const {
   })),
 }));
 
-vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/server-utils")>(
-    "@paperclipai/adapter-utils/server-utils",
+vi.mock("@stapler/adapter-utils/server-utils", async () => {
+  const actual = await vi.importActual<typeof import("@stapler/adapter-utils/server-utils")>(
+    "@stapler/adapter-utils/server-utils",
   );
   return {
     ...actual,
@@ -48,9 +48,9 @@ vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
   };
 });
 
-vi.mock("@paperclipai/adapter-utils/ssh", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/ssh")>(
-    "@paperclipai/adapter-utils/ssh",
+vi.mock("@stapler/adapter-utils/ssh", async () => {
+  const actual = await vi.importActual<typeof import("@stapler/adapter-utils/ssh")>(
+    "@stapler/adapter-utils/ssh",
   );
   return {
     ...actual,
@@ -103,6 +103,7 @@ describe("codex remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "CodexCoder",
+        role: null,
         adapterType: "codex_local",
         adapterConfig: {},
       },
@@ -218,6 +219,7 @@ describe("codex remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "CodexCoder",
+        role: null,
         adapterType: "codex_local",
         adapterConfig: {},
       },
@@ -282,6 +284,7 @@ describe("codex remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "CodexCoder",
+        role: null,
         adapterType: "codex_local",
         adapterConfig: {},
       },
@@ -355,6 +358,7 @@ describe("codex remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "CodexCoder",
+        role: null,
         adapterType: "codex_local",
         adapterConfig: {},
       },

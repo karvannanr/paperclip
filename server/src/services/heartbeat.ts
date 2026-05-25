@@ -3,8 +3,8 @@ import path from "node:path";
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, getTableColumns, gt, inArray, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import { and, asc, desc, eq, getTableColumns, gt, inArray, isNull, lte, notInArray, or, sql } from "drizzle-orm";
+import type { Db } from "@stapler/db";
 import {
   AGENT_DEFAULT_MAX_CONCURRENT_RUNS,
   ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY,
@@ -20,7 +20,7 @@ import {
   type ModelProfileKey,
   type RoutineRevisionSnapshotV1,
   type RunLivenessState,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import {
   agents,
   agentRuntimeState,
@@ -45,7 +45,7 @@ import {
   routineRuns,
   routines,
   workspaceOperations,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import { conflict, HttpError, notFound } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { publishLiveEvent } from "./live-events.js";
@@ -61,7 +61,7 @@ import type {
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { parseObject, asBoolean, asNumber, appendWithByteCap, MAX_EXCERPT_BYTES } from "../adapters/utils.js";
 import { costService } from "./costs.js";
-import { trackAgentFirstHeartbeat } from "@paperclipai/shared/telemetry";
+import { trackAgentFirstHeartbeat } from "@stapler/shared/telemetry";
 import { getTelemetryClient } from "../telemetry.js";
 import { companySkillService } from "./company-skills.js";
 import { budgetService, type BudgetEnforcementScope } from "./budgets.js";
@@ -111,6 +111,7 @@ import {
   continuationSummaryParksExecutor,
   getIssueContinuationSummaryDocument,
   refreshIssueContinuationSummary,
+  ISSUE_CONTINUATION_SUMMARY_MAX_BODY_CHARS,
 } from "./issue-continuation-summary.js";
 import { executionWorkspaceService, mergeExecutionWorkspaceConfig } from "./execution-workspaces.js";
 import { workspaceOperationService } from "./workspace-operations.js";
@@ -158,12 +159,12 @@ import {
   hasSessionCompactionThresholds,
   resolveSessionCompactionPolicy,
   type SessionCompactionPolicy,
-} from "@paperclipai/adapter-utils";
+} from "@stapler/adapter-utils";
 import {
   readPaperclipSkillSyncPreference,
   writePaperclipSkillSyncPreference,
-} from "@paperclipai/adapter-utils/server-utils";
-import { extractSkillMentionIds, isUuidLike } from "@paperclipai/shared";
+} from "@stapler/adapter-utils/server-utils";
+import { extractSkillMentionIds } from "@stapler/shared";
 import { environmentService } from "./environments.js";
 import { environmentRuntimeService } from "./environment-runtime.js";
 import { environmentRunOrchestrator } from "./environment-run-orchestrator.js";
@@ -195,8 +196,9 @@ const LIVENESS_BOOKKEEPING_ACTIVITY_ACTIONS = [
 ];
 const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
 const WAKE_COMMENT_IDS_KEY = "wakeCommentIds";
-const PAPERCLIP_WAKE_PAYLOAD_KEY = "paperclipWake";
-const PAPERCLIP_HARNESS_CHECKOUT_KEY = "paperclipHarnessCheckedOut";
+const WAKE_INTERACTION_IDS_KEY = "wakeInteractionIds";
+const STAPLER_WAKE_PAYLOAD_KEY = "paperclipWake";
+const STAPLER_HARNESS_CHECKOUT_KEY = "paperclipHarnessCheckedOut";
 const DETACHED_PROCESS_ERROR_CODE = "process_detached";
 const REPO_ONLY_CWD_SENTINEL = "/__paperclip_repo_only__";
 const MANAGED_WORKSPACE_GIT_CLONE_TIMEOUT_MS = 10 * 60 * 1000;
@@ -912,6 +914,7 @@ const heartbeatRunIssueSummaryColumns = {
   lastOutputSeq: heartbeatRuns.lastOutputSeq,
   lastOutputStream: heartbeatRuns.lastOutputStream,
   lastOutputBytes: heartbeatRuns.lastOutputBytes,
+  lastLivenessAt: heartbeatRuns.lastLivenessAt,
   issueId: sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'issueId'`.as("issueId"),
 } as const;
 
@@ -1827,6 +1830,49 @@ function mergeWakeCommentIds(...values: Array<unknown>): string[] {
   return merged;
 }
 
+function extractWakeInteractionIds(
+  contextSnapshot: Record<string, unknown> | null | undefined,
+): string[] {
+  const raw = contextSnapshot?.[WAKE_INTERACTION_IDS_KEY];
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const entry of raw) {
+    const value = readNonEmptyString(entry);
+    if (!value || out.includes(value)) continue;
+    out.push(value);
+  }
+  return out;
+}
+
+function mergeWakeInteractionIds(...values: Array<unknown>): string[] {
+  const merged: string[] = [];
+  const append = (value: unknown) => {
+    const normalized = readNonEmptyString(value);
+    if (!normalized || merged.includes(normalized)) return;
+    merged.push(normalized);
+  };
+
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      for (const entry of value) append(entry);
+      continue;
+    }
+    if (typeof value === "object" && value !== null) {
+      const candidate = value as Record<string, unknown>;
+      const batched = extractWakeInteractionIds(candidate);
+      if (batched.length > 0) {
+        for (const entry of batched) append(entry);
+        continue;
+      }
+      append(candidate.interactionId);
+      continue;
+    }
+    append(value);
+  }
+
+  return merged;
+}
+
 function enrichWakeContextSnapshot(input: {
   contextSnapshot: Record<string, unknown>;
   reason: string | null;
@@ -1837,9 +1883,11 @@ function enrichWakeContextSnapshot(input: {
   const { contextSnapshot, reason, source, triggerDetail, payload } = input;
   const issueIdFromPayload = readNonEmptyString(payload?.["issueId"]) ?? readNonEmptyString(payload?.["taskId"]);
   const commentIdFromPayload = readNonEmptyString(payload?.["commentId"]);
+  const interactionIdFromPayload = readNonEmptyString(payload?.["interactionId"]);
   const taskKey = deriveTaskKey(contextSnapshot, payload);
   const wakeCommentId = deriveCommentId(contextSnapshot, payload);
   const wakeCommentIds = mergeWakeCommentIds(contextSnapshot, commentIdFromPayload);
+  const wakeInteractionIds = mergeWakeInteractionIds(contextSnapshot, interactionIdFromPayload);
 
   if (!readNonEmptyString(contextSnapshot["wakeReason"]) && reason) {
     contextSnapshot.wakeReason = reason;
@@ -1863,9 +1911,13 @@ function enrichWakeContextSnapshot(input: {
     contextSnapshot.wakeCommentId = latestCommentId;
     // Once comment ids are normalized into the snapshot, rebuild the structured
     // wake payload from those ids later instead of carrying forward stale data.
-    delete contextSnapshot[PAPERCLIP_WAKE_PAYLOAD_KEY];
+    delete contextSnapshot[STAPLER_WAKE_PAYLOAD_KEY];
   } else if (!readNonEmptyString(contextSnapshot["wakeCommentId"]) && wakeCommentId) {
     contextSnapshot.wakeCommentId = wakeCommentId;
+  }
+  if (wakeInteractionIds.length > 0) {
+    contextSnapshot[WAKE_INTERACTION_IDS_KEY] = wakeInteractionIds;
+    contextSnapshot.interactionId = wakeInteractionIds[wakeInteractionIds.length - 1];
   }
   if (!readNonEmptyString(contextSnapshot["wakeSource"]) && source) {
     contextSnapshot.wakeSource = source;
@@ -1931,7 +1983,14 @@ export function mergeCoalescedContextSnapshot(
     merged.wakeCommentId = latestCommentId;
     // The merged context should carry canonical comment ids; the next wake will
     // regenerate any structured payload from those ids.
-    delete merged[PAPERCLIP_WAKE_PAYLOAD_KEY];
+    delete merged[STAPLER_WAKE_PAYLOAD_KEY];
+  }
+  const mergedInteractionIds = mergeWakeInteractionIds(existing, incoming);
+  if (mergedInteractionIds.length > 0) {
+    merged[WAKE_INTERACTION_IDS_KEY] = mergedInteractionIds;
+    // Keep the scalar field pointing at the latest accepted interaction for
+    // backward compatibility with code that reads `interactionId` directly.
+    merged.interactionId = mergedInteractionIds[mergedInteractionIds.length - 1];
   }
   if (!hasInteractionContinuationWakeContext(incoming)) {
     clearInteractionContinuationWakeContext(merged);
@@ -2083,9 +2142,7 @@ async function buildPaperclipWakePayload(input: {
           instruction: readNonEmptyString(input.contextSnapshot.livenessContinuationInstruction),
         }
       : null,
-    interactionKind: readNonEmptyString(input.contextSnapshot.interactionKind),
-    interactionStatus: readNonEmptyString(input.contextSnapshot.interactionStatus),
-    checkedOutByHarness: input.contextSnapshot[PAPERCLIP_HARNESS_CHECKOUT_KEY] === true,
+    checkedOutByHarness: input.contextSnapshot[STAPLER_HARNESS_CHECKOUT_KEY] === true,
     dependencyBlockedInteraction: input.contextSnapshot.dependencyBlockedInteraction === true,
     treeHoldInteraction: input.contextSnapshot.treeHoldInteraction === true,
     activeTreeHold: parseObject(input.contextSnapshot.activeTreeHold),
@@ -4067,285 +4124,12 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     }
   }
 
-  function issueUiLink(issue: Pick<typeof issues.$inferSelect, "id" | "identifier">) {
-    const label = issue.identifier ?? issue.id;
-    const prefix = issue.identifier?.split("-")[0] || "PAP";
-    return `[${label}](/${prefix}/issues/${label})`;
-  }
-
-  async function buildDetectedSuccessfulRunProgressSummary(run: typeof heartbeatRuns.$inferSelect) {
-    const resultJson = parseObject(run.resultJson);
-    const candidates = [
-      readNonEmptyString(run.nextAction) ? `Next action noted: ${readNonEmptyString(run.nextAction)}` : null,
-      readNonEmptyString(run.livenessReason),
-      readNonEmptyString(resultJson.summary),
-      readNonEmptyString(resultJson.result),
-      readNonEmptyString(resultJson.message),
-    ].filter((value): value is string => Boolean(value));
-    const summary = candidates[0];
-    if (!summary) return null;
-    return redactDetectedSuccessfulRunProgressSummaryForBoard(
-      summary,
-      await getCurrentUserRedactionOptions(),
-    );
-  }
-
-  async function addSuccessfulRunHandoffCommentOnce(input: {
-    issue: Pick<typeof issues.$inferSelect, "id" | "identifier" | "title" | "status">;
-    run: typeof heartbeatRuns.$inferSelect;
-    agent: Pick<typeof agents.$inferSelect, "id" | "name">;
-    detectedProgressSummary: string;
-  }) {
-    const existing = await db
-      .select({ id: issueComments.id })
-      .from(issueComments)
-      .where(
-        and(
-          eq(issueComments.companyId, input.run.companyId),
-          eq(issueComments.issueId, input.issue.id),
-          eq(issueComments.createdByRunId, input.run.id),
-          sql`(${issueComments.body} = ${SUCCESSFUL_RUN_HANDOFF_REQUIRED_NOTICE_BODY} or ${issueComments.body} like '## This issue still needs a next step%' or ${issueComments.body} like '## Successful run missing issue disposition%')`,
-        ),
-      )
-      .limit(1)
-      .then((rows) => rows[0] ?? null);
-    if (existing) return null;
-    const notice = buildSuccessfulRunHandoffRequiredNotice(input);
-    return issuesSvc.addComment(
-      input.issue.id,
-      notice.body,
-      { runId: input.run.id },
-      {
-        authorType: "system",
-        presentation: notice.presentation,
-        metadata: notice.metadata,
-      },
-    );
-  }
-
-  async function handleSuccessfulRunHandoff(run: typeof heartbeatRuns.$inferSelect, agent: typeof agents.$inferSelect) {
-    if (run.status !== "succeeded") return;
-    const context = parseObject(run.contextSnapshot);
-    const issueId = readNonEmptyString(context.issueId) ?? readNonEmptyString(context.taskId);
-    if (!issueId) return;
-
-    const issue = await db
-      .select({
-        id: issues.id,
-        companyId: issues.companyId,
-        identifier: issues.identifier,
-        title: issues.title,
-        status: issues.status,
-        assigneeAgentId: issues.assigneeAgentId,
-        assigneeUserId: issues.assigneeUserId,
-        executionState: issues.executionState,
-        projectId: issues.projectId,
-      })
-      .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)))
-      .then((rows) => rows[0] ?? null);
-    const idempotencyKey = issue
-      ? buildFinishSuccessfulRunHandoffIdempotencyKey({
-        issueId: issue.id,
-        sourceRunId: run.id,
-      })
-      : null;
-    const taskKey = deriveTaskKeyWithHeartbeatFallback(context, null);
-    const detectedProgressSummary = await buildDetectedSuccessfulRunProgressSummary(run);
-
-    const [
-      activeExecutionPath,
-      queuedWake,
-      pendingInteraction,
-      pendingApproval,
-      explicitBlocker,
-      openRecoveryIssue,
-      existingWake,
-      budgetBlock,
-      pauseHold,
-    ] = await Promise.all([
-      issue
-        ? db
-          .select({ id: heartbeatRuns.id })
-          .from(heartbeatRuns)
-          .where(
-            and(
-              eq(heartbeatRuns.companyId, issue.companyId),
-              eq(heartbeatRuns.agentId, run.agentId),
-              inArray(heartbeatRuns.status, [...EXECUTION_PATH_HEARTBEAT_RUN_STATUSES]),
-              sql`(
-                ${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${issue.id}
-                or ${heartbeatRuns.contextSnapshot} ->> 'taskId' = ${issue.id}
-              )`,
-              sql`${heartbeatRuns.id} <> ${run.id}`,
-            ),
-          )
-          .limit(1)
-          .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      issue
-        ? db
-          .select({ id: agentWakeupRequests.id })
-          .from(agentWakeupRequests)
-          .where(
-            and(
-              eq(agentWakeupRequests.companyId, issue.companyId),
-              eq(agentWakeupRequests.agentId, run.agentId),
-              inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution", "claimed"]),
-              sql`(
-                ${agentWakeupRequests.payload} ->> 'issueId' = ${issue.id}
-                or ${agentWakeupRequests.payload} ->> 'taskId' = ${issue.id}
-                or ${agentWakeupRequests.payload} -> '_paperclipWakeContext' ->> 'issueId' = ${issue.id}
-                or ${agentWakeupRequests.payload} -> '_paperclipWakeContext' ->> 'taskId' = ${issue.id}
-              )`,
-            ),
-          )
-          .limit(1)
-          .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      issue
-        ? db
-          .select({ id: issueThreadInteractions.id })
-          .from(issueThreadInteractions)
-          .where(
-            and(
-              eq(issueThreadInteractions.companyId, issue.companyId),
-              eq(issueThreadInteractions.issueId, issue.id),
-              eq(issueThreadInteractions.status, "pending"),
-            ),
-          )
-          .limit(1)
-          .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      issue
-        ? db
-          .select({ id: issueApprovals.approvalId })
-          .from(issueApprovals)
-          .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
-          .where(
-            and(
-              eq(issueApprovals.companyId, issue.companyId),
-              eq(issueApprovals.issueId, issue.id),
-              inArray(approvals.status, ["pending", "revision_requested"]),
-            ),
-          )
-          .limit(1)
-          .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      issue
-        ? db
-          .select({ id: issueRelations.issueId })
-          .from(issueRelations)
-          .where(
-            and(
-              eq(issueRelations.companyId, issue.companyId),
-              eq(issueRelations.relatedIssueId, issue.id),
-              eq(issueRelations.type, "blocks"),
-              sql`exists (
-                select 1
-                from issues blocker
-                where blocker.id = ${issueRelations.issueId}
-                  and blocker.company_id = ${issue.companyId}
-                  and blocker.status not in ('done', 'cancelled')
-                  and blocker.hidden_at is null
-              )`,
-            ),
-          )
-          .limit(1)
-          .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      issue
-        ? db
-          .select({ id: issues.id })
-          .from(issues)
-          .where(
-            and(
-              eq(issues.companyId, issue.companyId),
-              inArray(issues.originKind, [
-                RECOVERY_ORIGIN_KINDS.strandedIssueRecovery,
-                RECOVERY_ORIGIN_KINDS.issueGraphLivenessEscalation,
-              ]),
-              eq(issues.originId, issue.id),
-              isNull(issues.hiddenAt),
-              notInArray(issues.status, ["done", "cancelled"]),
-            ),
-          )
-          .limit(1)
-          .then((rows) => rows[0] ?? null)
-        : Promise.resolve(null),
-      idempotencyKey
-        ? findExistingFinishSuccessfulRunHandoffWake(db, {
-          companyId: run.companyId,
-          idempotencyKey,
-        })
-        : Promise.resolve(null),
-      issue
-        ? budgets.getInvocationBlock(issue.companyId, run.agentId, {
-          issueId: issue.id,
-          projectId: issue.projectId,
-        })
-        : Promise.resolve(null),
-      issue
-        ? treeControlSvc.getActivePauseHoldGate(issue.companyId, issue.id)
-        : Promise.resolve(null),
-    ]);
-
-    const decision = decideSuccessfulRunHandoff({
-      run,
-      issue,
-      agent,
-      livenessState: run.livenessState as RunLivenessState | null,
-      detectedProgressSummary,
-      taskKey,
-      hasActiveExecutionPath: Boolean(activeExecutionPath),
-      hasQueuedWake: Boolean(queuedWake),
-      hasPendingInteractionOrApproval: Boolean(pendingInteraction || pendingApproval),
-      hasExplicitBlockerPath: Boolean(explicitBlocker),
-      hasOpenRecoveryIssue: Boolean(openRecoveryIssue),
-      hasPauseHold: Boolean(pauseHold),
-      budgetBlocked: Boolean(budgetBlock),
-      idempotentWakeExists: Boolean(existingWake),
-    });
-
-    if (decision.kind !== "enqueue" || !issue) return;
-
-    const handoffRun = await enqueueWakeup(run.agentId, {
-      source: "automation",
-      triggerDetail: "system",
-      reason: FINISH_SUCCESSFUL_RUN_HANDOFF_REASON,
-      payload: decision.payload,
-      contextSnapshot: decision.contextSnapshot,
-      idempotencyKey: decision.idempotencyKey,
-      requestedByActorType: "system",
-      requestedByActorId: "heartbeat",
-    });
-    if (!handoffRun) return;
-
-    await addSuccessfulRunHandoffCommentOnce({
-      issue,
-      run,
-      agent,
-      detectedProgressSummary: detectedProgressSummary ?? "The run reported progress, but did not choose a next step.",
-    });
-    await logActivity(db, {
-      companyId: issue.companyId,
-      actorType: "system",
-      actorId: "heartbeat",
-      agentId: run.agentId,
-      runId: run.id,
-      action: "issue.successful_run_handoff_required",
-      entityType: "issue",
-      entityId: issue.id,
-      details: {
-        label: "Successful run missing issue disposition",
-        sourceRunId: run.id,
-        correctiveRunId: handoffRun.id,
-        handoffReason: SUCCESSFUL_RUN_MISSING_STATE_REASON,
-        missingDisposition: "clear_next_step",
-        detectedProgressSummary,
-        issue: issueUiLink(issue),
-      },
-    });
+  async function touchRunLiveness(runId: string, at?: Date): Promise<void> {
+    const stamp = at ?? new Date();
+    await db
+      .update(heartbeatRuns)
+      .set({ lastLivenessAt: stamp, updatedAt: stamp })
+      .where(eq(heartbeatRuns.id, runId));
   }
 
   async function appendRunEvent(
@@ -4384,6 +4168,8 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       message: sanitizedMessage,
       payload: sanitizedPayload,
     });
+
+    await touchRunLiveness(run.id);
 
     publishLiveEvent({
       companyId: run.companyId,
@@ -5834,11 +5620,17 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     const runtimeConfig = parseObject(agent.runtimeConfig);
     const heartbeat = parseObject(runtimeConfig.heartbeat);
 
+    const rawMaxChars = asNumber(heartbeat.continuationSummaryMaxChars, ISSUE_CONTINUATION_SUMMARY_MAX_BODY_CHARS);
+    const continuationSummaryMaxChars = Number.isFinite(rawMaxChars) && rawMaxChars > 0
+      ? Math.min(rawMaxChars, ISSUE_CONTINUATION_SUMMARY_MAX_BODY_CHARS)
+      : ISSUE_CONTINUATION_SUMMARY_MAX_BODY_CHARS;
+
     return {
       enabled: asBoolean(heartbeat.enabled, false),
       intervalSec: Math.max(0, asNumber(heartbeat.intervalSec, 0)),
       wakeOnDemand: asBoolean(heartbeat.wakeOnDemand ?? heartbeat.wakeOnAssignment ?? heartbeat.wakeOnOnDemand ?? heartbeat.wakeOnAutomation, true),
       maxConcurrentRuns: normalizeMaxConcurrentRuns(heartbeat.maxConcurrentRuns),
+      continuationSummaryMaxChars,
     };
   }
 
@@ -6653,8 +6445,21 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         failureReason: finalizedRun.error ?? undefined,
       });
 
+      // Guard: skip process-loss retry if the issue is already in a terminal status.
+      // Retrying into a done/cancelled issue would silently re-open it via the queued run.
+      const retryIssueId = readNonEmptyString(parseObject(run.contextSnapshot).issueId);
+      const retryIssueStatus = retryIssueId
+        ? await db
+            .select({ status: issues.status })
+            .from(issues)
+            .where(and(eq(issues.id, retryIssueId), eq(issues.companyId, run.companyId)))
+            .then((rows) => rows[0]?.status ?? null)
+        : null;
+      const issueIsTerminal =
+        retryIssueStatus === "done" || retryIssueStatus === "cancelled";
+
       let retriedRun: typeof heartbeatRuns.$inferSelect | null = null;
-      if (shouldRetry) {
+      if (shouldRetry && !issueIsTerminal) {
         const agent = await getAgent(run.agentId);
         if (agent) {
           retriedRun = await enqueueProcessLossRetry(finalizedRun, agent, now);
@@ -6730,7 +6535,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
   async function buildRunOutputSilence(
     run: Pick<
       typeof heartbeatRuns.$inferSelect,
-      "id" | "companyId" | "status" | "lastOutputAt" | "lastOutputSeq" | "lastOutputStream" | "processStartedAt" | "startedAt" | "createdAt"
+      "id" | "companyId" | "status" | "lastLivenessAt" | "lastOutputAt" | "lastOutputSeq" | "lastOutputStream" | "processStartedAt" | "startedAt" | "createdAt"
     >,
     now = new Date(),
   ) {
@@ -6911,6 +6716,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     }
 
     const runtime = await ensureRuntimeState(agent);
+    const policy = parseHeartbeatPolicy(agent);
     const context = parseObject(run.contextSnapshot);
     const taskKey = deriveTaskKeyWithHeartbeatFallback(context, null);
     const sessionCodec = getAdapterSessionCodec(agent.adapterType);
@@ -6932,10 +6738,10 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     ) {
       try {
         await issuesSvc.checkout(issueId, agent.id, ["todo", "backlog", "blocked"], run.id);
-        context[PAPERCLIP_HARNESS_CHECKOUT_KEY] = true;
+        context[STAPLER_HARNESS_CHECKOUT_KEY] = true;
       } catch (error) {
         if (!isCheckoutConflictError(error)) throw error;
-        context[PAPERCLIP_HARNESS_CHECKOUT_KEY] = false;
+        context[STAPLER_HARNESS_CHECKOUT_KEY] = false;
       }
       issueContext = await getIssueExecutionContext(agent.companyId, issueId);
     }
@@ -7037,10 +6843,15 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       ? await getIssueContinuationSummaryDocument(db, issueRef.id)
       : null;
     if (continuationSummary) {
+      const maxChars = policy.continuationSummaryMaxChars;
+      const body = continuationSummary.body.length > maxChars
+        ? continuationSummary.body.slice(0, maxChars)
+        : continuationSummary.body;
       context.paperclipContinuationSummary = {
         key: continuationSummary.key,
         title: continuationSummary.title,
-        body: continuationSummary.body,
+        body,
+        bodyTruncated: continuationSummary.body.length > maxChars,
         updatedAt: continuationSummary.updatedAt.toISOString(),
       };
     } else {
@@ -7063,9 +6874,9 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         : null,
     });
     if (paperclipWakePayload) {
-      context[PAPERCLIP_WAKE_PAYLOAD_KEY] = paperclipWakePayload;
+      context[STAPLER_WAKE_PAYLOAD_KEY] = paperclipWakePayload;
     } else {
-      delete context[PAPERCLIP_WAKE_PAYLOAD_KEY];
+      delete context[STAPLER_WAKE_PAYLOAD_KEY];
     }
     const taskMarkdown = buildPaperclipTaskMarkdown({
       issue: issueRef
@@ -7580,6 +7391,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
           lastOutputSeq: pendingOutputProgress.seq,
           lastOutputStream: pendingOutputProgress.stream,
           lastOutputBytes: pendingOutputProgress.bytes,
+          lastLivenessAt: pendingOutputProgress.at,
           updatedAt: new Date(),
         })
         .where(eq(heartbeatRuns.id, run.id));
@@ -7778,7 +7590,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
             runId: run.id,
             adapterType: agent.adapterType,
           },
-          "local agent jwt secret missing or invalid; running without injected PAPERCLIP_API_KEY",
+          "local agent jwt secret missing or invalid; running without injected STAPLER_API_KEY",
         );
       }
       const adapterResult = await adapter.execute({
@@ -8330,6 +8142,32 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
 
         const deferredPayload = parseObject(deferred.payload);
         const deferredContextSeed = parseObject(deferredPayload[DEFERRED_WAKE_CONTEXT_KEY]);
+
+        // Re-check dependency readiness at promotion time. A deferred run might
+        // have been queued while an interaction-allowed run was active; once that
+        // run finishes we must not promote a non-interaction deferred run if the
+        // issue's blockers are still unresolved.
+        if (!allowsIssueInteractionWake(deferredContextSeed)) {
+          const deferredDependencyReadiness = await issuesSvc.listDependencyReadiness(
+            issue.companyId,
+            [issue.id],
+            tx,
+          ).then((rows) => rows.get(issue.id) ?? null);
+          if (deferredDependencyReadiness && !deferredDependencyReadiness.isDependencyReady) {
+            await tx
+              .update(agentWakeupRequests)
+              .set({
+                status: "skipped",
+                reason: "issue_dependencies_blocked",
+                finishedAt: new Date(),
+                error: "Deferred wake skipped: issue dependencies still unresolved at promotion time",
+                updatedAt: new Date(),
+              })
+              .where(eq(agentWakeupRequests.id, deferred.id));
+            continue;
+          }
+        }
+
         const activePauseHold = await treeControlSvc.getActivePauseHoldGate(issue.companyId, issue.id);
         const treeHoldInteractionWake = activePauseHold && await isVerifiedIssueTreeControlInteractionWake(tx, {
           companyId: issue.companyId,
@@ -9871,6 +9709,8 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
 
     buildRunOutputSilence,
 
+    touchRunLiveness,
+
     tickTimers: async (now = new Date()) => {
       const allAgents = await db.select().from(agents);
       let checked = 0;
@@ -9913,6 +9753,32 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     },
 
     cancelRun: (runId: string) => cancelRunInternal(runId),
+
+    /**
+     * Approve a run that is in `needs_review` state.
+     * Transitions it to `succeeded` so it proceeds normally.
+     */
+    approveRun: async (runId: string) => {
+      const run = await getRun(runId);
+      if (!run) throw notFound("Heartbeat run not found");
+      if (run.status !== "needs_review") return run;
+      return setRunStatus(run.id, "succeeded", { finishedAt: run.finishedAt ?? new Date() });
+    },
+
+    /**
+     * Reject a run that is in `needs_review` state.
+     * Transitions it to `failed` so post-mortem can fire.
+     */
+    rejectRun: async (runId: string) => {
+      const run = await getRun(runId);
+      if (!run) throw notFound("Heartbeat run not found");
+      if (run.status !== "needs_review") return run;
+      return setRunStatus(run.id, "failed", {
+        finishedAt: run.finishedAt ?? new Date(),
+        error: "Rejected by reviewer",
+        errorCode: "reviewer_rejected",
+      });
+    },
 
     cancelActiveForAgent: (agentId: string) => cancelActiveForAgentInternal(agentId),
 

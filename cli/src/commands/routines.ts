@@ -11,7 +11,7 @@ import {
   formatEmbeddedPostgresError,
   prepareEmbeddedPostgresNativeRuntime,
   routines,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import { eq, inArray } from "drizzle-orm";
 import { loadPaperclipEnvFile } from "../config/env.js";
 import { readConfig, resolveConfigPath } from "../config/store.js";
@@ -239,10 +239,10 @@ export async function disableAllRoutinesInConfig(
   loadPaperclipEnvFile(configPath);
   const companyId =
     nonEmpty(options.companyId)
-    ?? nonEmpty(process.env.PAPERCLIP_COMPANY_ID)
+    ?? nonEmpty(process.env.STAPLER_COMPANY_ID)
     ?? null;
   if (!companyId) {
-    throw new Error("Company ID is required. Pass --company-id or set PAPERCLIP_COMPANY_ID.");
+    throw new Error("Company ID is required. Pass --company-id or set STAPLER_COMPANY_ID.");
   }
 
   const config = readConfig(configPath);

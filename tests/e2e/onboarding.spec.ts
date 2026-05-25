@@ -10,11 +10,11 @@ import { test, expect } from "@playwright/test";
  *   Step 4 — Ready to launch (summary + open issue)
  *
  * By default this runs in skip_llm mode: we do NOT assert that an LLM
- * heartbeat fires. Set PAPERCLIP_E2E_SKIP_LLM=false to enable LLM-dependent
+ * heartbeat fires. Set STAPLER_E2E_SKIP_LLM=false to enable LLM-dependent
  * assertions (requires a valid ANTHROPIC_API_KEY).
  */
 
-const SKIP_LLM = process.env.PAPERCLIP_E2E_SKIP_LLM !== "false";
+const SKIP_LLM = process.env.STAPLER_E2E_SKIP_LLM !== "false";
 
 const COMPANY_NAME = `E2E-Test-${Date.now()}`;
 const AGENT_NAME = "CEO";
@@ -25,6 +25,17 @@ test.describe("Onboarding wizard", () => {
     await page.goto("/onboarding");
 
     const wizardHeading = page.locator("h3", { hasText: "Name your company" });
+    const newCompanyBtn = page.getByRole("button", { name: "New Company" });
+
+    await expect(async () => {
+      const wizardVisible = await wizardHeading.isVisible();
+      const launcherVisible = await newCompanyBtn.isVisible();
+      expect(wizardVisible || launcherVisible).toBe(true);
+    }).toPass({ timeout: 15_000 });
+
+    if (!(await wizardHeading.isVisible()) && (await newCompanyBtn.isVisible())) {
+      await newCompanyBtn.click();
+    }
 
     await expect(wizardHeading).toBeVisible({ timeout: 5_000 });
 

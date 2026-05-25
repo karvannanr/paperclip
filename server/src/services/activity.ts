@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import {
   activityLog,
   agents,
@@ -13,8 +13,8 @@ import {
   issues,
   issueWorkProducts,
   workspaceOperations,
-} from "@paperclipai/db";
-import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@paperclipai/shared";
+} from "@stapler/db";
+import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@stapler/shared";
 import { logger } from "../middleware/logger.js";
 import { classifyRunLiveness } from "./run-liveness.js";
 
@@ -374,6 +374,29 @@ export function activityService(db: Db) {
           ),
         )
         .orderBy(desc(activityLog.createdAt)),
+
+    forRun: async (runId: string, action?: string) => {
+      const run = await db
+        .select({ companyId: heartbeatRuns.companyId })
+        .from(heartbeatRuns)
+        .where(eq(heartbeatRuns.id, runId))
+        .then((rows) => rows[0] ?? null);
+      if (!run) return [];
+
+      const conditions: ReturnType<typeof eq>[] = [
+        eq(activityLog.companyId, run.companyId),
+        eq(activityLog.runId, runId),
+      ];
+      if (action) {
+        conditions.push(eq(activityLog.action, action));
+      }
+
+      return db
+        .select()
+        .from(activityLog)
+        .where(and(...conditions))
+        .orderBy(asc(activityLog.createdAt));
+    },
 
     runsForIssue: async (companyId: string, issueId: string) => {
       scheduleRunLivenessBackfill(companyId, issueId);

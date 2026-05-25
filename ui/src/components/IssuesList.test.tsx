@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Issue, Project } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IssuesList } from "./IssuesList";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -182,6 +182,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     hiddenAt: null,
     createdAt: new Date("2026-04-07T00:00:00.000Z"),
     updatedAt: new Date("2026-04-07T00:00:00.000Z"),
+    scheduledFor: null,
     labels: [],
     labelIds: [],
     myLastTouchAt: null,

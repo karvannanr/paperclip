@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { issuesApi } from "@/api/issues";
 import {
@@ -50,6 +50,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     hiddenAt: null,
     createdAt: new Date("2026-04-11T00:00:00.000Z"),
     updatedAt: new Date("2026-04-11T00:00:00.000Z"),
+    scheduledFor: null,
     labels: [],
     labelIds: [],
     myLastTouchAt: null,

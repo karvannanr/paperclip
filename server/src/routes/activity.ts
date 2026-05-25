@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { Db } from "@paperclipai/db";
-import { normalizeIssueIdentifier } from "@paperclipai/shared";
+import type { Db } from "@stapler/db";
 import { validate } from "../middleware/validate.js";
 import { activityService, normalizeActivityLimit } from "../services/activity.js";
 import { assertAuthenticated, assertBoard, assertCompanyAccess } from "./authz.js";
@@ -93,6 +92,19 @@ export function activityRoutes(db: Db) {
     }
     assertCompanyAccess(req, run.companyId);
     const result = await svc.issuesForRun(runId);
+    res.json(result);
+  });
+
+  router.get("/heartbeat-runs/:runId/activity", async (req, res) => {
+    const runId = req.params.runId as string;
+    const action = req.query.action as string | undefined;
+    const run = await heartbeat.getRun(runId);
+    if (!run) {
+      res.json([]);
+      return;
+    }
+    assertCompanyAccess(req, run.companyId);
+    const result = await svc.forRun(runId, action);
     res.json(result);
   });
 

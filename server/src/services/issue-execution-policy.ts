@@ -1,16 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type {
-  IssueExecutionDecision,
-  IssueExecutionMonitorClearReason,
-  IssueExecutionMonitorPolicy,
-  IssueExecutionMonitorState,
-  IssueExecutionPolicy,
-  IssueExecutionStage,
-  IssueExecutionStagePrincipal,
-  IssueExecutionState,
-  IssueMonitorScheduledBy,
-} from "@paperclipai/shared";
-import { issueExecutionPolicySchema, issueExecutionStateSchema } from "@paperclipai/shared";
+import type { IssueExecutionDecision, IssueExecutionPolicy, IssueExecutionStage, IssueExecutionStagePrincipal, IssueExecutionState } from "@stapler/shared";
+import { issueExecutionPolicySchema, issueExecutionStateSchema } from "@stapler/shared";
 import { unprocessable } from "../errors.js";
 
 type AssigneeLike = {
@@ -626,6 +616,22 @@ function applyIssueExecutionStageTransition(input: TransitionInput): TransitionR
         patch.status = "in_progress";
         Object.assign(patch, patchForPrincipal(existingState.returnAssignee));
       }
+    } else if (requestedStatus === "in_review") {
+      // No policy and no existing state: initialize a minimal executionState so
+      // in_review issues never end up with executionState=null, which would let
+      // any agent's run proceed unchecked through evaluateQueuedRunStaleness.
+      patch.executionState = {
+        status: PENDING_STATUS,
+        currentStageId: null,
+        currentStageIndex: null,
+        currentStageType: null,
+        currentParticipant: currentAssignee,
+        returnAssignee: currentAssignee,
+        reviewRequest: null,
+        completedStageIds: [],
+        lastDecisionId: null,
+        lastDecisionOutcome: null,
+      } satisfies IssueExecutionState;
     }
     return { patch };
   }

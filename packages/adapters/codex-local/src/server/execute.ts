@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { inferOpenAiCompatibleBiller, type AdapterExecutionContext, type AdapterExecutionResult } from "@paperclipai/adapter-utils";
+import { inferOpenAiCompatibleBiller, type AdapterExecutionContext, type AdapterExecutionResult } from "@stapler/adapter-utils";
 import {
   adapterExecutionTargetIsRemote,
   adapterExecutionTargetRemoteCwd,
@@ -18,7 +18,7 @@ import {
   resolveAdapterExecutionTargetCommandForLogs,
   runAdapterExecutionTargetProcess,
   startAdapterExecutionTargetPaperclipBridge,
-} from "@paperclipai/adapter-utils/execution-target";
+} from "@stapler/adapter-utils/execution-target";
 import {
   asString,
   asNumber,
@@ -35,9 +35,9 @@ import {
   renderTemplate,
   renderPaperclipWakePrompt,
   stringifyPaperclipWakePayload,
-  DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+  DEFAULT_STAPLER_AGENT_PROMPT_TEMPLATE,
   joinPromptSections,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@stapler/adapter-utils/server-utils";
 import {
   parseCodexJsonl,
   extractCodexRetryNotBefore,
@@ -287,7 +287,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
   const promptTemplate = asString(
     config.promptTemplate,
-    DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+    DEFAULT_STAPLER_AGENT_PROMPT_TEMPLATE,
   );
   const command = asString(config.command, "codex");
   const model = asString(config.model, "");
@@ -404,9 +404,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       path.posix.join(effectiveExecutionCwd, ".paperclip-runtime", "codex", "home")
     : null;
   const hasExplicitApiKey =
-    typeof envConfig.PAPERCLIP_API_KEY === "string" && envConfig.PAPERCLIP_API_KEY.trim().length > 0;
+    typeof envConfig.STAPLER_API_KEY === "string" && envConfig.STAPLER_API_KEY.trim().length > 0;
   const env: Record<string, string> = { ...buildPaperclipEnv(agent) };
-  env.PAPERCLIP_RUN_ID = runId;
+  env.STAPLER_RUN_ID = runId;
   const wakeTaskId =
     (typeof context.taskId === "string" && context.taskId.trim().length > 0 && context.taskId.trim()) ||
     (typeof context.issueId === "string" && context.issueId.trim().length > 0 && context.issueId.trim()) ||
@@ -433,28 +433,28 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const wakePayloadJson = stringifyPaperclipWakePayload(context.paperclipWake);
   const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
   if (wakeTaskId) {
-    env.PAPERCLIP_TASK_ID = wakeTaskId;
+    env.STAPLER_TASK_ID = wakeTaskId;
   }
   if (issueWorkMode) {
     env.PAPERCLIP_ISSUE_WORK_MODE = issueWorkMode;
   }
   if (wakeReason) {
-    env.PAPERCLIP_WAKE_REASON = wakeReason;
+    env.STAPLER_WAKE_REASON = wakeReason;
   }
   if (wakeCommentId) {
-    env.PAPERCLIP_WAKE_COMMENT_ID = wakeCommentId;
+    env.STAPLER_WAKE_COMMENT_ID = wakeCommentId;
   }
   if (approvalId) {
-    env.PAPERCLIP_APPROVAL_ID = approvalId;
+    env.STAPLER_APPROVAL_ID = approvalId;
   }
   if (approvalStatus) {
-    env.PAPERCLIP_APPROVAL_STATUS = approvalStatus;
+    env.STAPLER_APPROVAL_STATUS = approvalStatus;
   }
   if (linkedIssueIds.length > 0) {
-    env.PAPERCLIP_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
+    env.STAPLER_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
   }
   if (wakePayloadJson) {
-    env.PAPERCLIP_WAKE_PAYLOAD_JSON = wakePayloadJson;
+    env.STAPLER_WAKE_PAYLOAD_JSON = wakePayloadJson;
   }
   refreshPaperclipWorkspaceEnvForExecution({
     env,
@@ -472,18 +472,28 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     executionTargetIsRemote,
     executionCwd: effectiveExecutionCwd,
   });
+  if (workspaceHints.length > 0) {
+    env.STAPLER_WORKSPACES_JSON = JSON.stringify(workspaceHints);
+  }
   if (runtimeServiceIntents.length > 0) {
-    env.PAPERCLIP_RUNTIME_SERVICE_INTENTS_JSON = JSON.stringify(runtimeServiceIntents);
+    env.STAPLER_RUNTIME_SERVICE_INTENTS_JSON = JSON.stringify(runtimeServiceIntents);
   }
   if (runtimeServices.length > 0) {
-    env.PAPERCLIP_RUNTIME_SERVICES_JSON = JSON.stringify(runtimeServices);
+    env.STAPLER_RUNTIME_SERVICES_JSON = JSON.stringify(runtimeServices);
   }
   if (runtimePrimaryUrl) {
-    env.PAPERCLIP_RUNTIME_PRIMARY_URL = runtimePrimaryUrl;
+    env.STAPLER_RUNTIME_PRIMARY_URL = runtimePrimaryUrl;
+  }
+  const targetPaperclipApiUrl = adapterExecutionTargetPaperclipApiUrl(executionTarget);
+  if (targetPaperclipApiUrl) {
+    env.STAPLER_API_URL = targetPaperclipApiUrl;
+  }
+  for (const [k, v] of Object.entries(envConfig)) {
+    if (typeof v === "string") env[k] = v;
   }
   env.CODEX_HOME = remoteCodexHome ?? effectiveCodexHome;
   if (!hasExplicitApiKey && authToken) {
-    env.PAPERCLIP_API_KEY = authToken;
+    env.STAPLER_API_KEY = authToken;
   }
   if (executionTargetIsRemote && adapterExecutionTargetUsesPaperclipBridge(runtimeExecutionTarget)) {
     paperclipBridge = await startAdapterExecutionTargetPaperclipBridge({
@@ -491,8 +501,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       target: runtimeExecutionTarget,
       runtimeRootDir: preparedExecutionTargetRuntime?.runtimeRootDir,
       adapterKey: "codex",
-      timeoutSec,
-      hostApiToken: env.PAPERCLIP_API_KEY,
+      hostApiToken: env.STAPLER_API_KEY,
       onLog,
     });
     if (paperclipBridge) {
@@ -528,6 +537,16 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     includeRuntimeKeys: ["HOME"],
     resolvedCommand,
   });
+
+  // Wall-clock cap. Default 30min so a wedged child cannot hang a heartbeat
+  // forever. Operators can opt out by setting `timeoutSec: 0` in adapter config.
+  const timeoutSec = asNumber(config.timeoutSec, 1800);
+  const graceSec = asNumber(config.graceSec, 20);
+  // Idle watchdog: terminate the child if no stdout/stderr arrives within
+  // this window. Default 5min so genuinely silent hangs (no JSONL events)
+  // surface as a timeout instead of accumulating wall-clock time.
+  // Set to 0 to disable.
+  const idleTimeoutSec = asNumber(config.idleTimeoutSec, 300);
 
   const runtimeSessionParams = parseObject(runtime.sessionParams);
   const runtimeSessionId = asString(runtimeSessionParams.sessionId, runtime.sessionId ?? "");
@@ -713,6 +732,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       stdin: prompt,
       timeoutSec,
       graceSec,
+      idleTimeoutSec,
       onSpawn,
       onLog: async (stream, chunk) => {
         if (stream !== "stderr") {
@@ -736,16 +756,38 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   };
 
   const toResult = (
-    attempt: { proc: { exitCode: number | null; signal: string | null; timedOut: boolean; stdout: string; stderr: string }; rawStderr: string; parsed: ReturnType<typeof parseCodexJsonl> },
+    attempt: {
+      proc: {
+        exitCode: number | null;
+        signal: string | null;
+        timedOut: boolean;
+        timeoutReason?: "wall" | "idle" | null;
+        stdout: string;
+        stderr: string;
+      };
+      rawStderr: string;
+      parsed: ReturnType<typeof parseCodexJsonl>;
+    },
     clearSessionOnMissingSession = false,
     isRetry = false,
   ): AdapterExecutionResult => {
     if (attempt.proc.timedOut) {
+      const isIdle = attempt.proc.timeoutReason === "idle";
+      const errorCode = isIdle ? "codex_idle_timeout" : "codex_wall_timeout";
+      const errorMessage = isIdle
+        ? `Timed out after ${idleTimeoutSec}s of no output (idle watchdog)`
+        : `Timed out after ${timeoutSec}s wall-clock`;
       return {
         exitCode: attempt.proc.exitCode,
         signal: attempt.proc.signal,
         timedOut: true,
-        errorMessage: `Timed out after ${timeoutSec}s`,
+        errorCode,
+        errorMessage,
+        errorMeta: {
+          timeoutReason: isIdle ? "idle" : "wall",
+          timeoutSec,
+          idleTimeoutSec,
+        },
         clearSession: clearSessionOnMissingSession,
       };
     }

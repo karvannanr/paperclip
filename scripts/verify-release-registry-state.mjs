@@ -179,7 +179,7 @@ function collectInternalDependencyProblemEntries(
 
   for (const [sectionName, deps] of sections) {
     for (const [dependencyName, dependencyVersion] of Object.entries(deps)) {
-      if (!dependencyName.startsWith("@paperclipai/")) {
+      if (!dependencyName.startsWith("@stapler/")) {
         continue;
       }
 
@@ -401,11 +401,16 @@ async function main() {
         continue;
       }
 
-      for (const dependencyVersion of collectInternalDependencyVersions(manifest)) {
-        dependencyVersionsByKey.set(
-          createManifestLookupKey(dependencyVersion.packageName, dependencyVersion.version),
-          dependencyVersion,
-        );
+      for (const deps of [
+        manifest.dependencies ?? {},
+        manifest.optionalDependencies ?? {},
+        manifest.peerDependencies ?? {},
+      ]) {
+        for (const dependencyName of Object.keys(deps)) {
+          if (dependencyName.startsWith("@stapler/")) {
+            additionalInternalDeps.add(dependencyName);
+          }
+        }
       }
     }
   }

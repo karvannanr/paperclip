@@ -52,8 +52,13 @@ export function BreadcrumbProvider({ children, companyName }: BreadcrumbProvider
   }, []);
 
   useEffect(() => {
-    document.title = buildDocumentTitle(breadcrumbs, companyName);
-  }, [breadcrumbs, companyName]);
+    if (breadcrumbs.length === 0) {
+      document.title = "Stapler";
+    } else {
+      const parts = [...breadcrumbs].reverse().map((b) => b.label);
+      document.title = `${parts.join(" · ")} · Stapler`;
+    }
+  }, [breadcrumbs]);
 
   return (
     <BreadcrumbContext.Provider value={{ breadcrumbs, setBreadcrumbs, mobileToolbar, setMobileToolbar }}>

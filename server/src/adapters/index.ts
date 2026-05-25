@@ -26,5 +26,5 @@ export type {
   UsageSummary,
   AdapterAgent,
   AdapterRuntime,
-} from "@paperclipai/adapter-utils";
+} from "@stapler/adapter-utils";
 export { runningProcesses } from "./utils.js";

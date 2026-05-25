@@ -407,6 +407,9 @@ export type {
   PluginDatabaseDeclaration,
   PluginApiRouteCompanyResolution,
   PluginApiRouteDeclaration,
+  IssueCustomFieldType,
+  IssueCustomFieldEnumValue,
+  IssueCustomFieldDeclaration,
   PaperclipPluginManifestV1,
   PluginRecord,
   PluginDatabaseNamespaceRecord,
@@ -424,3 +427,16 @@ export type {
   PluginDatabaseNamespaceMode,
   PluginDatabaseNamespaceStatus,
 } from "./plugin.js";
+export type {
+  CompanyDocument,
+  CompanyDocumentSummary,
+  CompanyDocumentRevision,
+} from "./document.js";
+export type { GoalWithProgress, GoalProgress, GoalAcceptanceCriterion } from "./goal.js";
+export type {
+  AgentMemory,
+  AgentMemoryScope,
+  AgentMemorySearchResult,
+  AgentMemorySaveResult,
+  InjectedMemory,
+} from "./agent-memory.js";

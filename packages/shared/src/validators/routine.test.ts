@@ -1,86 +1,164 @@
 import { describe, expect, it } from "vitest";
-import {
-  routineRevisionSnapshotV1Schema,
-  updateRoutineSchema,
-} from "./routine.js";
+import { createRoutineSchema, routineVariableSchema, updateRoutineSchema } from "./routine.js";
 
-const routineId = "11111111-1111-4111-8111-111111111111";
-const companyId = "22222222-2222-4222-8222-222222222222";
-const triggerId = "33333333-3333-4333-8333-333333333333";
-const baseRevisionId = "44444444-4444-4444-8444-444444444444";
+describe("routineVariableSchema", () => {
+  const validText = {
+    name: "MY_VAR",
+    type: "text" as const,
+  };
 
-describe("routine validators", () => {
-  it("accepts versioned routine revision snapshots with safe trigger metadata", () => {
-    const parsed = routineRevisionSnapshotV1Schema.parse({
-      version: 1,
-      routine: {
-        id: routineId,
-        companyId,
-        projectId: null,
-        goalId: null,
-        parentIssueId: null,
-        title: "Daily triage",
-        description: null,
-        assigneeAgentId: null,
-        priority: "medium",
-        status: "active",
-        concurrencyPolicy: "coalesce_if_active",
-        catchUpPolicy: "skip_missed",
-        variables: [],
-      },
-      triggers: [{
-        id: triggerId,
-        kind: "webhook",
-        label: "Inbound",
-        enabled: true,
-        cronExpression: null,
-        timezone: null,
-        publicId: "routine_webhook_123",
-        signingMode: "bearer",
-        replayWindowSec: 300,
-      }],
+  it("accepts a valid text variable", () => {
+    expect(routineVariableSchema.safeParse(validText).success).toBe(true);
+  });
+
+  it("rejects name with leading digit", () => {
+    expect(routineVariableSchema.safeParse({ ...validText, name: "1bad" }).success).toBe(false);
+  });
+
+  it("rejects name with hyphens", () => {
+    expect(routineVariableSchema.safeParse({ ...validText, name: "bad-name" }).success).toBe(false);
+  });
+
+  it("accepts name with underscores and digits", () => {
+    expect(routineVariableSchema.safeParse({ ...validText, name: "A_1_B" }).success).toBe(true);
+  });
+
+  it("rejects select type without options", () => {
+    const result = routineVariableSchema.safeParse({
+      name: "CHOICE",
+      type: "select",
+      options: [],
     });
-
-    expect(parsed.triggers[0]?.publicId).toBe("routine_webhook_123");
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error)).toContain("option");
   });
 
-  it("rejects secret-bearing trigger fields in routine revision snapshots", () => {
-    expect(() => routineRevisionSnapshotV1Schema.parse({
-      version: 1,
-      routine: {
-        id: routineId,
-        companyId,
-        projectId: null,
-        goalId: null,
-        parentIssueId: null,
-        title: "Daily triage",
-        description: null,
-        assigneeAgentId: null,
-        priority: "medium",
-        status: "active",
-        concurrencyPolicy: "coalesce_if_active",
-        catchUpPolicy: "skip_missed",
-        variables: [],
-      },
-      triggers: [{
-        id: triggerId,
-        kind: "webhook",
-        label: "Inbound",
-        enabled: true,
-        cronExpression: null,
-        timezone: null,
-        publicId: "routine_webhook_123",
-        signingMode: "bearer",
-        replayWindowSec: 300,
-        secretId: "55555555-5555-4555-8555-555555555555",
-      }],
-    })).toThrow();
+  it("accepts select type with options", () => {
+    const result = routineVariableSchema.safeParse({
+      name: "CHOICE",
+      type: "select",
+      options: ["a", "b", "c"],
+    });
+    expect(result.success).toBe(true);
   });
 
-  it("accepts optional base revision ids on routine updates", () => {
-    expect(updateRoutineSchema.parse({
-      title: "Daily triage",
-      baseRevisionId,
-    }).baseRevisionId).toBe(baseRevisionId);
+  it("rejects non-select type with options", () => {
+    const result = routineVariableSchema.safeParse({
+      name: "TXT",
+      type: "text",
+      options: ["should not be here"],
+    });
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error)).toContain("option");
+  });
+
+  it("rejects select defaultValue not in options", () => {
+    const result = routineVariableSchema.safeParse({
+      name: "CHOICE",
+      type: "select",
+      options: ["a", "b"],
+      defaultValue: "c",
+    });
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error)).toContain("defaultValue");
+  });
+
+  it("accepts select defaultValue that is in options", () => {
+    const result = routineVariableSchema.safeParse({
+      name: "CHOICE",
+      type: "select",
+      options: ["a", "b"],
+      defaultValue: "a",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts boolean type with boolean defaultValue", () => {
+    const result = routineVariableSchema.safeParse({
+      name: "FLAG",
+      type: "boolean",
+      defaultValue: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts number type with numeric defaultValue", () => {
+    const result = routineVariableSchema.safeParse({
+      name: "RETRIES",
+      type: "number",
+      defaultValue: 3,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("createRoutineSchema", () => {
+  const valid = {
+    title: "Daily standup check",
+    assigneeAgentId: "550e8400-e29b-41d4-a716-446655440000",
+  };
+
+  it("accepts minimal valid routine", () => {
+    const result = createRoutineSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.status).toBe("active");
+      expect(result.data.priority).toBe("medium");
+      expect(result.data.concurrencyPolicy).toBe("coalesce_if_active");
+      expect(result.data.catchUpPolicy).toBe("skip_missed");
+      expect(result.data.variables).toEqual([]);
+    }
+  });
+
+  it("rejects empty title", () => {
+    expect(createRoutineSchema.safeParse({ ...valid, title: "" }).success).toBe(false);
+  });
+
+  it("rejects title over 200 chars", () => {
+    expect(
+      createRoutineSchema.safeParse({ ...valid, title: "x".repeat(201) }).success,
+    ).toBe(false);
+  });
+
+  it("rejects non-UUID assigneeAgentId", () => {
+    expect(
+      createRoutineSchema.safeParse({ ...valid, assigneeAgentId: "not-uuid" }).success,
+    ).toBe(false);
+  });
+
+  it("accepts null assigneeAgentId", () => {
+    expect(
+      createRoutineSchema.safeParse({ ...valid, assigneeAgentId: null }).success,
+    ).toBe(true);
+  });
+
+  it("accepts valid variables array", () => {
+    const result = createRoutineSchema.safeParse({
+      ...valid,
+      variables: [{ name: "MY_VAR", type: "text" }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects invalid variable in variables array", () => {
+    const result = createRoutineSchema.safeParse({
+      ...valid,
+      variables: [{ name: "1bad", type: "text" }],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updateRoutineSchema", () => {
+  it("accepts empty patch", () => {
+    expect(updateRoutineSchema.safeParse({}).success).toBe(true);
+  });
+
+  it("accepts partial title update", () => {
+    expect(updateRoutineSchema.safeParse({ title: "New title" }).success).toBe(true);
+  });
+
+  it("rejects invalid status in partial update", () => {
+    expect(updateRoutineSchema.safeParse({ status: "deleted" }).success).toBe(false);
   });
 });

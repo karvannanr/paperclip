@@ -13,12 +13,24 @@ import {
   resolvePaperclipInstanceRoot as resolveSharedPaperclipInstanceRoot,
 } from "@paperclipai/shared/home-paths";
 
-export {
-  expandHomePrefix,
-  resolveHomeAwarePath,
-  resolvePaperclipHomeDir,
-  resolvePaperclipInstanceId,
-};
+const DEFAULT_INSTANCE_ID = "default";
+const INSTANCE_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+export function resolvePaperclipHomeDir(): string {
+  const envHome = process.env.STAPLER_HOME?.trim();
+  if (envHome) return path.resolve(expandHomePrefix(envHome));
+  return path.resolve(os.homedir(), ".paperclip");
+}
+
+export function resolvePaperclipInstanceId(override?: string): string {
+  const raw = override?.trim() || process.env.STAPLER_INSTANCE_ID?.trim() || DEFAULT_INSTANCE_ID;
+  if (!INSTANCE_ID_RE.test(raw)) {
+    throw new Error(
+      `Invalid instance id '${raw}'. Allowed characters: letters, numbers, '_' and '-'.`,
+    );
+  }
+  return raw;
+}
 
 export function resolvePaperclipInstanceRoot(instanceId?: string): string {
   return resolveSharedPaperclipInstanceRoot({ instanceId });

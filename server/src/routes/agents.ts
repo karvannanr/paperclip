@@ -1,8 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import path from "node:path";
-import type { Db } from "@paperclipai/db";
-import { agents as agentsTable, companies, heartbeatRuns, issues as issuesTable } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
+import { agents as agentsTable, companies, heartbeatRuns, issues as issuesTable } from "@stapler/db";
 import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
 import {
   agentSkillSyncSchema,
@@ -25,12 +25,12 @@ import {
   wakeAgentSchema,
   updateAgentSchema,
   supportedEnvironmentDriversForAdapter,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import {
   readPaperclipSkillSyncPreference,
   writePaperclipSkillSyncPreference,
-} from "@paperclipai/adapter-utils/server-utils";
-import { trackAgentCreated } from "@paperclipai/shared/telemetry";
+} from "@stapler/adapter-utils/server-utils";
+import { trackAgentCreated } from "@stapler/shared/telemetry";
 import { validate } from "../middleware/validate.js";
 import {
   agentService,
@@ -57,12 +57,8 @@ import {
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { environmentService } from "../services/environments.js";
 import { resolveEnvironmentExecutionTarget } from "../services/environment-execution-target.js";
-import { environmentRuntimeService } from "../services/environment-runtime.js";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import type {
-  AdapterEnvironmentCheck,
-  AdapterEnvironmentTestResult,
-} from "@paperclipai/adapter-utils";
+import type { AdapterExecutionTarget } from "@stapler/adapter-utils/execution-target";
+import type { AdapterEnvironmentCheck } from "@stapler/adapter-utils";
 import { secretService } from "../services/secrets.js";
 import {
   detectAdapterModel,
@@ -77,21 +73,20 @@ import { redactEventPayload } from "../redaction.js";
 import { redactCurrentUserValue } from "../log-redaction.js";
 import { renderOrgChartSvg, renderOrgChartPng, type OrgNode, type OrgChartStyle, ORG_CHART_STYLES } from "./org-chart-svg.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
-import { runClaudeLogin } from "@paperclipai/adapter-claude-local/server";
+import { runClaudeLogin } from "@stapler/adapter-claude-local/server";
 import {
   DEFAULT_ACPX_LOCAL_AGENT,
   DEFAULT_ACPX_LOCAL_MODE,
   DEFAULT_ACPX_LOCAL_NON_INTERACTIVE_PERMISSIONS,
   DEFAULT_ACPX_LOCAL_PERMISSION_MODE,
-} from "@paperclipai/adapter-acpx-local";
+} from "@stapler/adapter-acpx-local";
 import {
   DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
   DEFAULT_CODEX_LOCAL_MODEL,
-} from "@paperclipai/adapter-codex-local";
-import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
-import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@paperclipai/adapter-opencode-local";
-import { requireOpenCodeModelId } from "@paperclipai/adapter-opencode-local/server";
+} from "@stapler/adapter-codex-local";
+import { DEFAULT_CURSOR_LOCAL_MODEL } from "@stapler/adapter-cursor-local";
+import { DEFAULT_GEMINI_LOCAL_MODEL } from "@stapler/adapter-gemini-local";
+import { ensureOpenCodeModelConfiguredAndAvailable } from "@stapler/adapter-opencode-local/server";
 import {
   loadDefaultAgentInstructionsBundle,
   resolveDefaultAgentInstructionsBundleRole,
@@ -178,7 +173,7 @@ export function agentRoutes(
   const companySkills = companySkillService(db);
   const workspaceOperations = workspaceOperationService(db);
   const instanceSettings = instanceSettingsService(db);
-  const strictSecretsMode = process.env.PAPERCLIP_SECRETS_STRICT_MODE === "true";
+  const strictSecretsMode = process.env.STAPLER_SECRETS_STRICT_MODE === "true";
 
   async function assertAgentEnvironmentSelection(
     companyId: string,
@@ -3075,6 +3070,7 @@ export function agentRoutes(
         name: agent.name,
         adapterType: agent.adapterType,
         adapterConfig: agent.adapterConfig,
+        role: agent.role ?? null,
       },
       config: runtimeConfig,
     });
@@ -3128,6 +3124,7 @@ export function agentRoutes(
       lastOutputSeq: heartbeatRuns.lastOutputSeq,
       lastOutputStream: heartbeatRuns.lastOutputStream,
       lastOutputBytes: heartbeatRuns.lastOutputBytes,
+      lastLivenessAt: heartbeatRuns.lastLivenessAt,
       processStartedAt: heartbeatRuns.processStartedAt,
       issueId: sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'issueId'`.as("issueId"),
     };
@@ -3192,6 +3189,58 @@ export function agentRoutes(
         await getCurrentUserRedactionOptions(),
       ),
     );
+  });
+
+  router.post("/heartbeat-runs/:runId/approve", async (req, res) => {
+    assertBoard(req);
+    const runId = req.params.runId as string;
+    const existing = await heartbeat.getRun(runId);
+    if (!existing) {
+      res.status(404).json({ error: "Heartbeat run not found" });
+      return;
+    }
+    assertCompanyAccess(req, existing.companyId);
+    const run = await heartbeat.approveRun(runId);
+
+    if (run && run.status === "succeeded") {
+      await logActivity(db, {
+        companyId: run.companyId,
+        actorType: "user",
+        actorId: req.actor.userId ?? "board",
+        action: "heartbeat.approved",
+        entityType: "heartbeat_run",
+        entityId: run.id,
+        details: { agentId: run.agentId },
+      });
+    }
+
+    res.json(run);
+  });
+
+  router.post("/heartbeat-runs/:runId/reject", async (req, res) => {
+    assertBoard(req);
+    const runId = req.params.runId as string;
+    const existing = await heartbeat.getRun(runId);
+    if (!existing) {
+      res.status(404).json({ error: "Heartbeat run not found" });
+      return;
+    }
+    assertCompanyAccess(req, existing.companyId);
+    const run = await heartbeat.rejectRun(runId);
+
+    if (run && run.status === "failed") {
+      await logActivity(db, {
+        companyId: run.companyId,
+        actorType: "user",
+        actorId: req.actor.userId ?? "board",
+        action: "heartbeat.rejected",
+        entityType: "heartbeat_run",
+        entityId: run.id,
+        details: { agentId: run.agentId },
+      });
+    }
+
+    res.json(run);
   });
 
   router.post("/heartbeat-runs/:runId/cancel", async (req, res) => {
@@ -3366,6 +3415,7 @@ export function agentRoutes(
         lastOutputSeq: heartbeatRuns.lastOutputSeq,
         lastOutputStream: heartbeatRuns.lastOutputStream,
         lastOutputBytes: heartbeatRuns.lastOutputBytes,
+        lastLivenessAt: heartbeatRuns.lastLivenessAt,
         processStartedAt: heartbeatRuns.processStartedAt,
       })
       .from(heartbeatRuns)

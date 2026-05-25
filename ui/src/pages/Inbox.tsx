@@ -1,7 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { INBOX_MINE_ISSUE_STATUS_FILTER } from "@paperclipai/shared";
+import { INBOX_MINE_ISSUE_STATUS_FILTER } from "@stapler/shared";
 import { approvalsApi } from "../api/approvals";
 import { accessApi } from "../api/access";
 import { authApi } from "../api/auth";
@@ -107,7 +107,7 @@ const INBOX_HEARTBEAT_RUN_LIMIT = 200;
 const INBOX_ISSUE_LIST_LIMIT = 500;
 import { Input } from "@/components/ui/input";
 import { PageTabBar } from "../components/PageTabBar";
-import type { Approval, HeartbeatRun, Issue, JoinRequest } from "@paperclipai/shared";
+import type { Approval, HeartbeatRun, Issue, JoinRequest } from "@stapler/shared";
 import {
   ACTIONABLE_APPROVAL_STATUSES,
   DEFAULT_INBOX_ISSUE_COLUMNS,
@@ -807,11 +807,10 @@ export function Inbox() {
     data: mineIssuesRaw = [],
     isLoading: isMineIssuesLoading,
   } = useQuery({
-    queryKey: [...queryKeys.issues.listMineByMe(selectedCompanyId!), "with-routine-executions"],
+    queryKey: [...queryKeys.issues.listMineByMe(selectedCompanyId!), "assigned-to-me"],
     queryFn: () =>
       issuesApi.list(selectedCompanyId!, {
-        touchedByUserId: "me",
-        inboxArchivedByUserId: "me",
+        assigneeUserId: "me",
         status: INBOX_MINE_ISSUE_STATUS_FILTER,
         includeRoutineExecutions: true,
         limit: INBOX_ISSUE_LIST_LIMIT,
@@ -1475,7 +1474,7 @@ export function Inbox() {
 
       // Cancel in-flight refetches so they don't overwrite our optimistic update
       const queryKeys_ = [
-        [...queryKeys.issues.listMineByMe(selectedCompanyId!), "with-routine-executions"],
+        [...queryKeys.issues.listMineByMe(selectedCompanyId!), "assigned-to-me"],
         [...queryKeys.issues.listTouchedByMe(selectedCompanyId!), "with-routine-executions"],
         queryKeys.issues.listUnreadTouchedByMe(selectedCompanyId!),
       ];

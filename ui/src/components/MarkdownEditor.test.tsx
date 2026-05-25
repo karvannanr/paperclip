@@ -3,7 +3,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildProjectMentionHref, buildRoutineMentionHref, buildSkillMentionHref } from "@paperclipai/shared";
+import { buildProjectMentionHref, buildSkillMentionHref } from "@stapler/shared";
 import {
   computeMentionMenuPosition,
   findClosestAutocompleteAnchor,
@@ -369,6 +369,10 @@ describe("MarkdownEditor", () => {
       );
     });
 
+    // Two flushes: the mock's mount effect schedules a setTimeout that calls
+    // setContent("") *after* the first flush settles. Without the second flush,
+    // that state update lands outside any act() boundary and React warns.
+    await flush();
     await flush();
     await vi.waitFor(() => {
       expect(container.querySelector("textarea")).not.toBeNull();

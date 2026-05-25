@@ -1,59 +1,10 @@
-import { and, desc, eq, inArray, like, ne, notInArray, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import {
-  agents,
-  companySecretBindings,
-  companySecretProviderConfigs,
-  companySecrets,
-  companySecretVersions,
-  environments,
-  heartbeatRuns,
-  issues,
-  projects,
-  routines,
-  secretAccessEvents,
-} from "@paperclipai/db";
-import type {
-  AgentEnvConfig,
-  CompanySecretBindingTarget,
-  EnvBinding,
-  RemoteSecretImportCandidate,
-  RemoteSecretImportConflict,
-  RemoteSecretImportRowResult,
-  SecretProviderConfigDiscoveryPreviewResult,
-  SecretBindingTargetType,
-  SecretProvider,
-  SecretProviderConfigHealthResponse,
-  SecretProviderConfigHealthStatus,
-  SecretProviderConfigStatus,
-  SecretVersionSelector,
-} from "@paperclipai/shared";
-import {
-  createSecretProviderConfigSchema,
-  deriveProjectUrlKey,
-  envBindingSchema,
-  isUuidLike,
-  normalizeAgentUrlKey,
-  secretProviderConfigPayloadSchema,
-  secretProviderConfigDiscoveryPreviewSchema,
-  updateSecretProviderConfigSchema,
-} from "@paperclipai/shared";
-import { conflict, HttpError, notFound, unprocessable } from "../errors.js";
-import { logger } from "../middleware/logger.js";
-import {
-  checkSecretProviders,
-  getSecretProvider,
-  listSecretProviders,
-} from "../secrets/provider-registry.js";
-import type {
-  PreparedSecretVersion,
-  RemoteSecretListResult,
-  SecretProviderHealthCheck,
-  SecretProviderModule,
-  SecretProviderVaultRuntimeConfig,
-  SecretProviderWriteContext,
-} from "../secrets/types.js";
-import { isSecretProviderClientError } from "../secrets/types.js";
+import { and, desc, eq } from "drizzle-orm";
+import type { Db } from "@stapler/db";
+import { companySecrets, companySecretVersions } from "@stapler/db";
+import type { AgentEnvConfig, EnvBinding, SecretProvider } from "@stapler/shared";
+import { envBindingSchema } from "@stapler/shared";
+import { conflict, notFound, unprocessable } from "../errors.js";
+import { getSecretProvider, listSecretProviders } from "../secrets/provider-registry.js";
 
 const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const SENSITIVE_ENV_KEY_RE =

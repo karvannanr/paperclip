@@ -2,7 +2,7 @@ import type {
   AdapterExecutionContext,
   AdapterExecutionResult,
   AdapterRuntimeServiceReport,
-} from "@paperclipai/adapter-utils";
+} from "@stapler/adapter-utils";
 import {
   asNumber,
   asString,
@@ -11,7 +11,7 @@ import {
   readPaperclipIssueWorkModeFromContext,
   renderPaperclipWakePrompt,
   stringifyPaperclipWakePayload,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@stapler/adapter-utils/server-utils";
 import crypto, { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 
@@ -150,8 +150,14 @@ export function resolveSessionKey(input: {
   if (input.strategy === "run") {
     return prefixSessionKeyForAgent(`paperclip:run:${input.runId}`, input.agentId);
   }
-  if (input.strategy === "issue" && input.issueId) {
-    return prefixSessionKeyForAgent(`paperclip:issue:${input.issueId}`, input.agentId);
+  if (input.strategy === "issue") {
+    if (input.issueId) {
+      return prefixSessionKeyForAgent(`paperclip:issue:${input.issueId}`, input.agentId);
+    }
+    // No issueId in context (e.g. timer heartbeat with no current issue).
+    // Fall back to a per-run key rather than the shared "paperclip" key to
+    // prevent context from bleeding across unrelated heartbeat wakes.
+    return prefixSessionKeyForAgent(`paperclip:run:${input.runId}`, input.agentId);
   }
   return prefixSessionKeyForAgent(fallback, input.agentId);
 }
@@ -337,47 +343,45 @@ function resolveClaimedApiKeyPath(value: unknown): string {
   return nonEmpty(value) ?? DEFAULT_CLAIMED_API_KEY_PATH;
 }
 
-function buildPaperclipEnvForWake(ctx: AdapterExecutionContext, wakePayload: WakePayload): Record<string, string> {
+export function buildPaperclipEnvForWake(ctx: AdapterExecutionContext, wakePayload: WakePayload): Record<string, string> {
   const paperclipApiUrlOverride = resolvePaperclipApiUrlOverride(ctx.config.paperclipApiUrl);
   const paperclipEnv: Record<string, string> = {
     ...buildPaperclipEnv(ctx.agent),
-    PAPERCLIP_RUN_ID: ctx.runId,
+    STAPLER_RUN_ID: ctx.runId,
   };
 
   if (paperclipApiUrlOverride) {
-    paperclipEnv.PAPERCLIP_API_URL = paperclipApiUrlOverride;
+    paperclipEnv.STAPLER_API_URL = paperclipApiUrlOverride;
   }
-  if (wakePayload.taskId) paperclipEnv.PAPERCLIP_TASK_ID = wakePayload.taskId;
-  const issueWorkMode = readPaperclipIssueWorkModeFromContext(ctx.context);
-  if (issueWorkMode) paperclipEnv.PAPERCLIP_ISSUE_WORK_MODE = issueWorkMode;
-  if (wakePayload.wakeReason) paperclipEnv.PAPERCLIP_WAKE_REASON = wakePayload.wakeReason;
-  if (wakePayload.wakeCommentId) paperclipEnv.PAPERCLIP_WAKE_COMMENT_ID = wakePayload.wakeCommentId;
-  if (wakePayload.approvalId) paperclipEnv.PAPERCLIP_APPROVAL_ID = wakePayload.approvalId;
-  if (wakePayload.approvalStatus) paperclipEnv.PAPERCLIP_APPROVAL_STATUS = wakePayload.approvalStatus;
+  if (wakePayload.taskId) paperclipEnv.STAPLER_TASK_ID = wakePayload.taskId;
+  if (wakePayload.wakeReason) paperclipEnv.STAPLER_WAKE_REASON = wakePayload.wakeReason;
+  if (wakePayload.wakeCommentId) paperclipEnv.STAPLER_WAKE_COMMENT_ID = wakePayload.wakeCommentId;
+  if (wakePayload.approvalId) paperclipEnv.STAPLER_APPROVAL_ID = wakePayload.approvalId;
+  if (wakePayload.approvalStatus) paperclipEnv.STAPLER_APPROVAL_STATUS = wakePayload.approvalStatus;
   if (wakePayload.issueIds.length > 0) {
-    paperclipEnv.PAPERCLIP_LINKED_ISSUE_IDS = wakePayload.issueIds.join(",");
+    paperclipEnv.STAPLER_LINKED_ISSUE_IDS = wakePayload.issueIds.join(",");
   }
 
   return paperclipEnv;
 }
 
-function buildWakeText(
+export function buildWakeText(
   payload: WakePayload,
   paperclipEnv: Record<string, string>,
   structuredWakePrompt: string,
 ): string {
   const claimedApiKeyPath = "~/.openclaw/workspace/paperclip-claimed-api-key.json";
   const orderedKeys = [
-    "PAPERCLIP_RUN_ID",
-    "PAPERCLIP_AGENT_ID",
-    "PAPERCLIP_COMPANY_ID",
-    "PAPERCLIP_API_URL",
-    "PAPERCLIP_TASK_ID",
-    "PAPERCLIP_WAKE_REASON",
-    "PAPERCLIP_WAKE_COMMENT_ID",
-    "PAPERCLIP_APPROVAL_ID",
-    "PAPERCLIP_APPROVAL_STATUS",
-    "PAPERCLIP_LINKED_ISSUE_IDS",
+    "STAPLER_RUN_ID",
+    "STAPLER_AGENT_ID",
+    "STAPLER_COMPANY_ID",
+    "STAPLER_API_URL",
+    "STAPLER_TASK_ID",
+    "STAPLER_WAKE_REASON",
+    "STAPLER_WAKE_COMMENT_ID",
+    "STAPLER_APPROVAL_ID",
+    "STAPLER_APPROVAL_STATUS",
+    "STAPLER_LINKED_ISSUE_IDS",
   ];
 
   const envLines: string[] = [];
@@ -388,7 +392,7 @@ function buildWakeText(
   }
 
   const issueIdHint = payload.taskId ?? payload.issueId ?? "";
-  const apiBaseHint = paperclipEnv.PAPERCLIP_API_URL ?? "<set PAPERCLIP_API_URL>";
+  const apiBaseHint = paperclipEnv.STAPLER_API_URL ?? "<set STAPLER_API_URL>";
 
   const lines = [
     "Paperclip wake event for a cloud adapter.",
@@ -397,9 +401,9 @@ function buildWakeText(
     "",
     "Set these values in your run context:",
     ...envLines,
-    `PAPERCLIP_API_KEY=<token from ${claimedApiKeyPath}>`,
+    `STAPLER_API_KEY=<token from ${claimedApiKeyPath}>`,
     "",
-    `Load PAPERCLIP_API_KEY from ${claimedApiKeyPath} (the token you saved after claim-api-key).`,
+    `Load STAPLER_API_KEY from ${claimedApiKeyPath} (the token you saved after claim-api-key).`,
     "",
     `api_base=${apiBaseHint}`,
     `task_id=${payload.taskId ?? ""}`,
@@ -411,16 +415,16 @@ function buildWakeText(
     `linked_issue_ids=${payload.issueIds.join(",")}`,
     "",
     "HTTP rules:",
-    "- Use Authorization: Bearer $PAPERCLIP_API_KEY on every API call.",
-    "- Use X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID on every mutating API call.",
+    "- Use Authorization: Bearer $STAPLER_API_KEY on every API call.",
+    "- Use X-Paperclip-Run-Id: $STAPLER_RUN_ID on every mutating API call.",
     "- Use only /api endpoints listed below.",
     "- Do NOT call guessed endpoints like /api/cloud-adapter/*, /api/cloud-adapters/*, /api/adapters/cloud/*, or /api/heartbeat.",
     "",
     "Workflow:",
     "1) GET /api/agents/me",
-    `2) Determine issueId: PAPERCLIP_TASK_ID if present, otherwise issue_id (${issueIdHint}).`,
+    `2) Determine issueId: STAPLER_TASK_ID if present, otherwise issue_id (${issueIdHint}).`,
     "3) If issueId exists:",
-    "   - POST /api/issues/{issueId}/checkout with {\"agentId\":\"$PAPERCLIP_AGENT_ID\",\"expectedStatuses\":[\"todo\",\"backlog\",\"blocked\",\"in_review\"]}",
+    "   - POST /api/issues/{issueId}/checkout with {\"agentId\":\"$STAPLER_AGENT_ID\",\"expectedStatuses\":[\"todo\",\"backlog\",\"blocked\",\"in_review\"]}",
     "   - GET /api/issues/{issueId}",
     "   - GET /api/issues/{issueId}/comments",
     "   - Execute the issue instructions exactly. If the issue is actionable, take concrete action in this run; do not stop at a plan unless planning was requested.",
@@ -431,7 +435,7 @@ function buildWakeText(
     "   - If instructions require a comment, POST /api/issues/{issueId}/comments with {\"body\":\"...\"}.",
     "   - PATCH /api/issues/{issueId} with {\"status\":\"done\",\"comment\":\"what changed and why\"}.",
     "4) If issueId does not exist:",
-    "   - GET /api/companies/$PAPERCLIP_COMPANY_ID/issues?assigneeAgentId=$PAPERCLIP_AGENT_ID&status=todo,in_progress,in_review,blocked",
+    "   - GET /api/companies/$STAPLER_COMPANY_ID/issues?assigneeAgentId=$STAPLER_AGENT_ID&status=todo,in_progress,in_review,blocked&includeRoutineExecutions=true",
     "   - Pick in_progress first, then in_review when you were woken by a comment, then todo, then blocked, then execute step 3.",
     "",
     "Useful endpoints for issue work:",
@@ -496,7 +500,7 @@ function buildStandardPaperclipPayload(
     wakeCommentId: wakePayload.wakeCommentId,
     approvalId: wakePayload.approvalId,
     approvalStatus: wakePayload.approvalStatus,
-    apiUrl: paperclipEnv.PAPERCLIP_API_URL ?? null,
+    apiUrl: paperclipEnv.STAPLER_API_URL ?? null,
   };
   const structuredWake = parseObject(ctx.context.paperclipWake);
   if (Object.keys(structuredWake).length > 0) {
@@ -1139,7 +1143,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     idempotencyKey: ctx.runId,
   };
   delete agentParams.text;
-  agentParams.paperclip = paperclipPayload;
 
   const configuredAgentId = nonEmpty(ctx.config.agentId);
   if (configuredAgentId && !nonEmpty(agentParams.agentId)) {

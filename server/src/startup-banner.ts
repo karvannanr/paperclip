@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolvePaperclipConfigPath, resolvePaperclipEnvPath } from "./paths.js";
-import type { BindMode, DeploymentExposure, DeploymentMode } from "@paperclipai/shared";
+import type { BindMode, DeploymentExposure, DeploymentMode } from "@stapler/shared";
 
 import { parse as parseEnvFileContents } from "dotenv";
 
@@ -30,6 +30,7 @@ type StartupBannerOptions = {
   migrationSummary: string;
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
+  orphanReapStaleThresholdMs: number;
   databaseBackupEnabled: boolean;
   databaseBackupIntervalMinutes: number;
   databaseBackupRetentionDays: number;
@@ -72,7 +73,7 @@ function resolveAgentJwtSecretStatus(
   status: "pass" | "warn";
   message: string;
 } {
-  const envValue = process.env.PAPERCLIP_AGENT_JWT_SECRET?.trim();
+  const envValue = process.env.STAPLER_AGENT_JWT_SECRET?.trim();
   if (envValue) {
     return {
       status: "pass",
@@ -82,7 +83,7 @@ function resolveAgentJwtSecretStatus(
 
   if (existsSync(envFilePath)) {
     const parsed = parseEnvFileContents(readFileSync(envFilePath, "utf-8"));
-    const fileValue = typeof parsed.PAPERCLIP_AGENT_JWT_SECRET === "string" ? parsed.PAPERCLIP_AGENT_JWT_SECRET.trim() : "";
+    const fileValue = typeof parsed.STAPLER_AGENT_JWT_SECRET === "string" ? parsed.STAPLER_AGENT_JWT_SECRET.trim() : "";
     if (fileValue) {
       return {
         status: "warn",
@@ -93,7 +94,7 @@ function resolveAgentJwtSecretStatus(
 
   return {
     status: "warn",
-    message: "missing (run `pnpm paperclipai onboard`)",
+    message: "missing (run `pnpm stapler onboard`)",
   };
 }
 
@@ -128,19 +129,19 @@ export function printStartupBanner(opts: StartupBannerOptions): void {
       : redactConnectionString(opts.db.connectionString);
 
   const heartbeat = opts.heartbeatSchedulerEnabled
-    ? `enabled ${color(`(${opts.heartbeatSchedulerIntervalMs}ms)`, "dim")}`
+    ? `enabled ${color(`(${opts.heartbeatSchedulerIntervalMs}ms, orphan ${opts.orphanReapStaleThresholdMs}ms)`, "dim")}`
     : color("disabled", "yellow");
   const dbBackup = opts.databaseBackupEnabled
     ? `enabled ${color(`(every ${opts.databaseBackupIntervalMinutes}m, keep ${opts.databaseBackupRetentionDays}d)`, "dim")}`
     : color("disabled", "yellow");
 
   const art = [
-    color("██████╗  █████╗ ██████╗ ███████╗██████╗  ██████╗██╗     ██╗██████╗ ", "cyan"),
-    color("██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝██║     ██║██╔══██╗", "cyan"),
-    color("██████╔╝███████║██████╔╝█████╗  ██████╔╝██║     ██║     ██║██████╔╝", "cyan"),
-    color("██╔═══╝ ██╔══██║██╔═══╝ ██╔══╝  ██╔══██╗██║     ██║     ██║██╔═══╝ ", "cyan"),
-    color("██║     ██║  ██║██║     ███████╗██║  ██║╚██████╗███████╗██║██║     ", "cyan"),
-    color("╚═╝     ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚═╝╚═╝     ", "cyan"),
+    color("███████╗████████╗ █████╗ ██████╗ ██╗     ███████╗██████╗ ", "cyan"),
+    color("██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██║     ██╔════╝██╔══██╗", "cyan"),
+    color("███████╗   ██║   ███████║██████╔╝██║     █████╗  ██████╔╝", "cyan"),
+    color("╚════██║   ██║   ██╔══██║██╔═══╝ ██║     ██╔══╝  ██╔══██╗", "cyan"),
+    color("███████║   ██║   ██║  ██║██║     ███████╗███████╗██║  ██║", "cyan"),
+    color("╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝╚═╝  ╚═╝", "cyan"),
   ];
 
   const lines = [

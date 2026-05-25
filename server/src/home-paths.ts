@@ -15,13 +15,29 @@ import {
   resolvePaperclipInstanceRoot,
 } from "@paperclipai/shared/home-paths";
 
-export {
-  expandHomePrefix,
-  resolveHomeAwarePath,
-  resolvePaperclipHomeDir,
-  resolvePaperclipInstanceId,
-  resolvePaperclipInstanceRoot,
-};
+function expandHomePrefix(value: string): string {
+  if (value === "~") return os.homedir();
+  if (value.startsWith("~/")) return path.resolve(os.homedir(), value.slice(2));
+  return value;
+}
+
+export function resolvePaperclipHomeDir(): string {
+  const envHome = process.env.STAPLER_HOME?.trim();
+  if (envHome) return path.resolve(expandHomePrefix(envHome));
+  return path.resolve(os.homedir(), ".paperclip");
+}
+
+export function resolvePaperclipInstanceId(): string {
+  const raw = process.env.STAPLER_INSTANCE_ID?.trim() || DEFAULT_INSTANCE_ID;
+  if (!INSTANCE_ID_RE.test(raw)) {
+    throw new Error(`Invalid STAPLER_INSTANCE_ID '${raw}'.`);
+  }
+  return raw;
+}
+
+export function resolvePaperclipInstanceRoot(): string {
+  return path.resolve(resolvePaperclipHomeDir(), "instances", resolvePaperclipInstanceId());
+}
 
 export function resolveDefaultConfigPath(): string {
   return resolvePaperclipConfigPathForInstance();

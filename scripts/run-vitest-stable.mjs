@@ -8,15 +8,14 @@ const repoRoot = process.cwd();
 const serverRoot = path.join(repoRoot, "server");
 const serverTestsDir = path.join(repoRoot, "server", "src", "__tests__");
 const nonServerProjects = [
-  "@paperclipai/shared",
-  "@paperclipai/db",
-  "@paperclipai/adapter-utils",
-  "@paperclipai/adapter-acpx-local",
-  "@paperclipai/adapter-codex-local",
-  "@paperclipai/adapter-opencode-local",
-  "@paperclipai/plugin-sdk",
-  "@paperclipai/ui",
-  "paperclipai",
+  "@stapler/shared",
+  "@stapler/db",
+  "@stapler/adapter-utils",
+  "@stapler/adapter-acpx-local",
+  "@stapler/adapter-codex-local",
+  "@stapler/adapter-opencode-local",
+  "@stapler/ui",
+  "@stapler/adapter-claude-local",
 ];
 const routeTestPattern = /[^/]*(?:route|routes|authz)[^/]*\.test\.ts$/;
 const additionalSerializedServerTests = new Set([
@@ -241,11 +240,11 @@ function runVitest(args, label) {
   // Keep per-run paths compact so Unix socket fixtures stay under macOS path limits.
   const env = {
     ...process.env,
-    PAPERCLIP_HOME: path.join(testRoot, "h"),
-    PAPERCLIP_INSTANCE_ID: `vt-${process.pid}-${invocationIndex}`,
-    TMPDIR: path.join(testRoot, "t"),
+    STAPLER_HOME: path.join(testRoot, "home"),
+    STAPLER_INSTANCE_ID: `vitest-${process.pid}-${invocationIndex}`,
+    TMPDIR: path.join(testRoot, "tmp"),
   };
-  mkdirSync(env.PAPERCLIP_HOME, { recursive: true });
+  mkdirSync(env.STAPLER_HOME, { recursive: true });
   mkdirSync(env.TMPDIR, { recursive: true });
   const result = spawnSync("pnpm", ["exec", "vitest", "run", ...args], {
     cwd: repoRoot,
@@ -324,26 +323,26 @@ const routeTests = walk(serverTestsDir)
   }))
   .sort((a, b) => a.repoPath.localeCompare(b.repoPath));
 
-const options = parseCliOptions(process.argv.slice(2));
-if (options.dryRun) {
-  const serializedSuites =
-    options.mode === serializedModeName
-      ? selectSerializedSuites(routeTests, options.shardIndex, options.shardCount)
-      : routeTests;
-  console.log(
-    JSON.stringify(
-      {
-        mode: options.mode,
-        shardIndex: options.shardIndex,
-        shardCount: options.shardCount,
-        group: options.group,
-        availableGeneralGroups: generalGroupNames,
-        serializedSuiteCount: routeTests.length,
-        selectedSerializedSuites: serializedSuites.map((routeTest) => routeTest.repoPath),
-      },
-      null,
-      2,
-    ),
+const excludeRouteArgs = routeTests.flatMap((file) => ["--exclude", file.serverPath]);
+for (const project of nonServerProjects) {
+  runVitest(["--project", project], `non-server project ${project}`);
+}
+
+runVitest(
+  ["--project", "@stapler/server", ...excludeRouteArgs],
+  `server suites excluding ${routeTests.length} serialized suites`,
+);
+
+for (const routeTest of routeTests) {
+  runVitest(
+    [
+      "--project",
+      "@stapler/server",
+      routeTest.repoPath,
+      "--pool=forks",
+      "--poolOptions.forks.isolate=true",
+    ],
+    routeTest.repoPath,
   );
   process.exit(0);
 }

@@ -1,192 +1,179 @@
-import { describe, expect, it } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
-  createSecretProviderConfigSchema,
+  envBindingPlainSchema,
+  envBindingSecretRefSchema,
+  envBindingSchema,
+  envConfigSchema,
   createSecretSchema,
-  remoteSecretImportPreviewSchema,
-  remoteSecretImportSchema,
-  secretProviderConfigDiscoveryPreviewSchema,
-  secretProviderConfigPayloadSchema,
-  updateSecretProviderConfigSchema,
+  rotateSecretSchema,
+  updateSecretSchema,
 } from "./secret.js";
 
-describe("secret validators", () => {
-  it("rejects externalRef on managed secrets", () => {
-    expect(() =>
-      createSecretSchema.parse({
-        name: "OpenAI API Key",
-        managedMode: "paperclip_managed",
-        value: "secret-value",
-        externalRef: "arn:aws:secretsmanager:us-east-1:123456789012:secret:shared/other",
-      }),
-    ).toThrow(/Managed secrets cannot set externalRef/);
+describe("envBindingPlainSchema", () => {
+  it("accepts valid plain binding", () => {
+    expect(envBindingPlainSchema.safeParse({ type: "plain", value: "my-value" }).success).toBe(true);
   });
 
-  it("allows externalRef on external reference secrets", () => {
-    const parsed = createSecretSchema.parse({
-      name: "Shared Secret",
-      managedMode: "external_reference",
-      externalRef: "arn:aws:secretsmanager:us-east-1:123456789012:secret:shared/other",
+  it("rejects wrong type", () => {
+    expect(envBindingPlainSchema.safeParse({ type: "secret_ref", value: "x" }).success).toBe(false);
+  });
+
+  it("rejects missing value", () => {
+    expect(envBindingPlainSchema.safeParse({ type: "plain" }).success).toBe(false);
+  });
+});
+
+describe("envBindingSecretRefSchema", () => {
+  it("accepts valid secret ref with latest", () => {
+    const result = envBindingSecretRefSchema.safeParse({
+      type: "secret_ref",
+      secretId: "550e8400-e29b-41d4-a716-446655440000",
+      version: "latest",
     });
-
-    expect(parsed.externalRef).toContain(":secret:shared/other");
+    expect(result.success).toBe(true);
   });
 
-  it("accepts non-sensitive local and AWS provider vault metadata", () => {
-    expect(() =>
-      createSecretProviderConfigSchema.parse({
-        provider: "local_encrypted",
-        displayName: "Local",
-        config: { backupReminderAcknowledged: true },
-      }),
-    ).not.toThrow();
-
-    expect(() =>
-      createSecretProviderConfigSchema.parse({
-        provider: "aws_secrets_manager",
-        displayName: "AWS",
-        config: {
-          region: "us-east-1",
-          namespace: "production",
-          secretNamePrefix: "paperclip",
-        },
-      }),
-    ).not.toThrow();
+  it("accepts valid secret ref with numeric version", () => {
+    expect(envBindingSecretRefSchema.safeParse({
+      type: "secret_ref",
+      secretId: "550e8400-e29b-41d4-a716-446655440000",
+      version: 3,
+    }).success).toBe(true);
   });
 
-  it("accepts origin-only Vault provider vault addresses", () => {
-    expect(() =>
-      createSecretProviderConfigSchema.parse({
-        provider: "vault",
-        displayName: "Vault draft",
-        config: { address: " https://vault.example.com/ " },
-      }),
-    ).not.toThrow();
-
-    const parsed = secretProviderConfigPayloadSchema.parse({
-      provider: "vault",
-      config: { address: " https://vault.example.com/ " },
-    });
-
-    expect(parsed.provider).toBe("vault");
-    if (parsed.provider !== "vault") throw new Error("Expected vault provider payload");
-    expect(parsed.config.address).toBe("https://vault.example.com");
+  it("accepts secret ref without version", () => {
+    expect(envBindingSecretRefSchema.safeParse({
+      type: "secret_ref",
+      secretId: "550e8400-e29b-41d4-a716-446655440000",
+    }).success).toBe(true);
   });
 
-  it.each([
-    "https://user:pass@vault.example.com",
-    "https://vault.example.com?token=hvs.x",
-    "https://vault.example.com#token=hvs.x",
-    "https://vault.example.com/v1/secret",
-  ])("rejects credential-bearing or non-origin Vault addresses: %s", (address) => {
-    expect(() =>
-      createSecretProviderConfigSchema.parse({
-        provider: "vault",
-        displayName: "Vault draft",
-        config: { address },
-      }),
-    ).toThrow(/origin-only HTTP\(S\) URL/i);
+  it("rejects invalid uuid secretId", () => {
+    expect(envBindingSecretRefSchema.safeParse({
+      type: "secret_ref",
+      secretId: "not-uuid",
+    }).success).toBe(false);
   });
 
-  it("rejects unsafe Vault addresses in provider payload validation used by updates", () => {
-    expect(() =>
-      secretProviderConfigPayloadSchema.parse({
-        provider: "vault",
-        config: { address: "https://vault.example.com?client_token=hvs.x" },
-      }),
-    ).toThrow(/origin-only HTTP\(S\) URL/i);
+  it("rejects zero version", () => {
+    expect(envBindingSecretRefSchema.safeParse({
+      type: "secret_ref",
+      secretId: "550e8400-e29b-41d4-a716-446655440000",
+      version: 0,
+    }).success).toBe(false);
   });
 
-  it("rejects unsafe Vault addresses in provider vault update payloads", () => {
-    expect(() =>
-      updateSecretProviderConfigSchema.parse({
-        config: { address: "https://vault.example.com#token=hvs.x" },
-      }),
-    ).toThrow(/origin-only HTTP\(S\) URL/i);
+  it("rejects negative version", () => {
+    expect(envBindingSecretRefSchema.safeParse({
+      type: "secret_ref",
+      secretId: "550e8400-e29b-41d4-a716-446655440000",
+      version: -1,
+    }).success).toBe(false);
+  });
+});
+
+describe("envBindingSchema (union)", () => {
+  it("accepts plain string (legacy)", () => {
+    expect(envBindingSchema.safeParse("plain-value").success).toBe(true);
   });
 
-  it("validates AWS remote import preview and import payloads", () => {
-    expect(
-      remoteSecretImportPreviewSchema.parse({
-        providerConfigId: "11111111-1111-4111-8111-111111111111",
-        query: "openai",
-        pageSize: 50,
-      }),
-    ).toEqual({
-      providerConfigId: "11111111-1111-4111-8111-111111111111",
-      query: "openai",
-      pageSize: 50,
-    });
-
-    expect(
-      remoteSecretImportSchema.parse({
-        providerConfigId: "11111111-1111-4111-8111-111111111111",
-        secrets: [
-          {
-            externalRef: "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/openai",
-            name: "OpenAI API key",
-            key: "OPENAI_API_KEY",
-            description: "  Operator-entered Paperclip description  ",
-            providerMetadata: { name: "prod/openai" },
-          },
-        ],
-      }),
-    ).toMatchObject({
-      providerConfigId: "11111111-1111-4111-8111-111111111111",
-      secrets: [
-        expect.objectContaining({
-          key: "OPENAI_API_KEY",
-          description: "Operator-entered Paperclip description",
-        }),
-      ],
-    });
+  it("accepts plain object", () => {
+    expect(envBindingSchema.safeParse({ type: "plain", value: "x" }).success).toBe(true);
   });
 
-  it("validates AWS provider vault discovery draft config without allowing sensitive keys", () => {
-    expect(
-      secretProviderConfigDiscoveryPreviewSchema.parse({
-        provider: "aws_secrets_manager",
-        config: {
-          region: "us-east-1",
-          namespace: "production",
-          secretNamePrefix: "paperclip",
-        },
-        query: "paperclip",
-        pageSize: 50,
-      }),
-    ).toEqual({
-      provider: "aws_secrets_manager",
-      config: {
-        region: "us-east-1",
-        namespace: "production",
-        secretNamePrefix: "paperclip",
-      },
-      query: "paperclip",
-      pageSize: 50,
-    });
-
-    expect(() =>
-      secretProviderConfigDiscoveryPreviewSchema.parse({
-        provider: "aws_secrets_manager",
-        config: {
-          region: "us-east-1",
-          accessKeyId: "AKIA...",
-        },
-      }),
-    ).toThrow(/sensitive field/i);
+  it("accepts secret ref object", () => {
+    expect(envBindingSchema.safeParse({
+      type: "secret_ref",
+      secretId: "550e8400-e29b-41d4-a716-446655440000",
+    }).success).toBe(true);
   });
 
-  it("caps AWS remote import paging and row counts", () => {
-    expect(() =>
-      remoteSecretImportPreviewSchema.parse({
-        providerConfigId: "11111111-1111-4111-8111-111111111111",
-        pageSize: 101,
-      }),
-    ).toThrow();
-    expect(() =>
-      remoteSecretImportSchema.parse({
-        providerConfigId: "11111111-1111-4111-8111-111111111111",
-        secrets: [],
-      }),
-    ).toThrow();
+  it("rejects number", () => {
+    expect(envBindingSchema.safeParse(42).success).toBe(false);
+  });
+});
+
+describe("envConfigSchema", () => {
+  it("accepts record of env bindings", () => {
+    expect(envConfigSchema.safeParse({
+      API_KEY: "plain-value",
+      DB_URL: { type: "plain", value: "postgres://..." },
+      SECRET_TOKEN: { type: "secret_ref", secretId: "550e8400-e29b-41d4-a716-446655440000" },
+    }).success).toBe(true);
+  });
+
+  it("accepts empty object", () => {
+    expect(envConfigSchema.safeParse({}).success).toBe(true);
+  });
+});
+
+describe("createSecretSchema", () => {
+  const validInput = { name: "MY_SECRET", value: "secret-value" };
+
+  it("accepts minimal valid input", () => {
+    expect(createSecretSchema.safeParse(validInput).success).toBe(true);
+  });
+
+  it("accepts all valid providers", () => {
+    const providers = ["local_encrypted", "aws_secrets_manager", "gcp_secret_manager", "vault"];
+    for (const provider of providers) {
+      expect(createSecretSchema.safeParse({ ...validInput, provider }).success).toBe(true);
+    }
+  });
+
+  it("accepts optional fields", () => {
+    expect(createSecretSchema.safeParse({
+      ...validInput,
+      description: "A description",
+      externalRef: "arn:aws:secretsmanager:us-east-1:123:secret:my-secret",
+    }).success).toBe(true);
+  });
+
+  it("rejects empty name", () => {
+    expect(createSecretSchema.safeParse({ ...validInput, name: "" }).success).toBe(false);
+  });
+
+  it("rejects empty value", () => {
+    expect(createSecretSchema.safeParse({ ...validInput, value: "" }).success).toBe(false);
+  });
+
+  it("rejects invalid provider", () => {
+    expect(createSecretSchema.safeParse({ ...validInput, provider: "invalid_provider" }).success).toBe(false);
+  });
+});
+
+describe("rotateSecretSchema", () => {
+  it("accepts valid new value", () => {
+    expect(rotateSecretSchema.safeParse({ value: "new-secret" }).success).toBe(true);
+  });
+
+  it("accepts with externalRef", () => {
+    expect(rotateSecretSchema.safeParse({ value: "new-secret", externalRef: "arn:..." }).success).toBe(true);
+  });
+
+  it("rejects empty value", () => {
+    expect(rotateSecretSchema.safeParse({ value: "" }).success).toBe(false);
+  });
+
+  it("rejects missing value", () => {
+    expect(rotateSecretSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("updateSecretSchema", () => {
+  it("accepts empty update", () => {
+    expect(updateSecretSchema.safeParse({}).success).toBe(true);
+  });
+
+  it("accepts name update", () => {
+    expect(updateSecretSchema.safeParse({ name: "NEW_NAME" }).success).toBe(true);
+  });
+
+  it("rejects empty name", () => {
+    expect(updateSecretSchema.safeParse({ name: "" }).success).toBe(false);
+  });
+
+  it("accepts null description", () => {
+    expect(updateSecretSchema.safeParse({ description: null }).success).toBe(true);
   });
 });

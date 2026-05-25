@@ -3,6 +3,19 @@ export const queryKeys = {
     all: ["companies"] as const,
     detail: (id: string) => ["companies", id] as const,
     stats: ["companies", "stats"] as const,
+    documents: (companyId: string) => ["companies", companyId, "documents"] as const,
+    document: (companyId: string, documentId: string) => ["companies", companyId, "documents", documentId] as const,
+    documentRevisions: (companyId: string, documentId: string) =>
+      ["companies", companyId, "documents", documentId, "revisions"] as const,
+    memories: (companyId: string, q: string | null, tags: string[] | null) =>
+      [
+        "companies",
+        companyId,
+        "memories",
+        q ?? "__no-q__",
+        tags && tags.length > 0 ? tags.join(",") : "__no-tags__",
+      ] as const,
+    memoriesStats: (companyId: string) => ["companies", companyId, "memories", "stats"] as const,
   },
   companySkills: {
     list: (companyId: string) => ["company-skills", companyId] as const,
@@ -19,8 +32,8 @@ export const queryKeys = {
     taskSessions: (id: string) => ["agents", "task-sessions", id] as const,
     skills: (id: string) => ["agents", "skills", id] as const,
     instructionsBundle: (id: string) => ["agents", "instructions-bundle", id] as const,
-    instructionsFile: (id: string, relativePath: string) =>
-      ["agents", "instructions-bundle", id, "file", relativePath] as const,
+    instructionsFile: (id: string, relativePath: string, rootPath?: string) =>
+      ["agents", "instructions-bundle", id, "file", rootPath ?? "", relativePath] as const,
     keys: (agentId: string) => ["agents", "keys", agentId] as const,
     configRevisions: (agentId: string) => ["agents", "config-revisions", agentId] as const,
     adapterModels: (companyId: string, adapterType: string, environmentId?: string | null) =>
@@ -29,6 +42,14 @@ export const queryKeys = {
       ["agents", companyId, "adapter-model-profiles", adapterType] as const,
     detectModel: (companyId: string, adapterType: string) =>
       ["agents", companyId, "detect-model", adapterType] as const,
+    memories: (agentId: string, q: string | null, tags: string[] | null) =>
+      [
+        "agents",
+        agentId,
+        "memories",
+        q ?? "__no-q__",
+        tags && tags.length > 0 ? tags.join(",") : "__no-tags__",
+      ] as const,
   },
   issues: {
     list: (companyId: string) => ["issues", companyId] as const,
@@ -69,6 +90,8 @@ export const queryKeys = {
     liveRuns: (issueId: string) => ["issues", "live-runs", issueId] as const,
     activeRun: (issueId: string) => ["issues", "active-run", issueId] as const,
     workProducts: (issueId: string) => ["issues", "work-products", issueId] as const,
+    skillInvocations: (issueId: string) => ["issues", "skill-invocations", issueId] as const,
+    customFields: (issueId: string) => ["issues", "custom-fields", issueId] as const,
   },
   routines: {
     list: (companyId: string, filters?: { projectId?: string | null }) =>
@@ -97,6 +120,10 @@ export const queryKeys = {
   goals: {
     list: (companyId: string) => ["goals", companyId] as const,
     detail: (id: string) => ["goals", "detail", id] as const,
+  },
+  outputs: {
+    list: (companyId: string) => ["outputs", companyId] as const,
+    detail: (id: string) => ["outputs", "detail", id] as const,
   },
   budgets: {
     overview: (companyId: string) => ["budgets", "overview", companyId] as const,
@@ -180,6 +207,10 @@ export const queryKeys = {
   skills: {
     available: ["skills", "available"] as const,
   },
+  instanceSkills: {
+    list: ["instance-skills"] as const,
+    detail: (id: string) => ["instance-skills", id] as const,
+  },
   plugins: {
     all: ["plugins"] as const,
     examples: ["plugins", "examples"] as const,
@@ -194,5 +225,11 @@ export const queryKeys = {
   },
   adapters: {
     all: ["adapters"] as const,
+  },
+  evals: {
+    suites: (companyId: string) => ["evals", "suites", companyId] as const,
+    suite: (id: string) => ["evals", "suite", id] as const,
+    runs: (companyId: string) => ["evals", "runs", companyId] as const,
+    run: (id: string) => ["evals", "run", id] as const,
   },
 };

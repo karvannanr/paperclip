@@ -9,7 +9,7 @@ import type {
   Issue,
   JoinRequest,
   ProjectWorkspace,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import {
   DEFAULT_INBOX_ISSUE_COLUMNS,
   buildGroupedInboxSections,
@@ -203,6 +203,7 @@ function makeIssue(id: string, isUnreadForMe: boolean): Issue {
     executionRunId: null,
     executionAgentNameKey: null,
     executionLockedAt: null,
+    scheduledFor: null,
     startedAt: null,
     completedAt: null,
     cancelledAt: null,

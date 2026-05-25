@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
-import { execute, testEnvironment } from "@paperclipai/adapter-openclaw-gateway/server";
+import { execute, testEnvironment } from "@stapler/adapter-openclaw-gateway/server";
 import {
   buildOpenClawGatewayConfig,
   parseOpenClawGatewayStdoutLine,
-} from "@paperclipai/adapter-openclaw-gateway/ui";
-import type { AdapterExecutionContext } from "@paperclipai/adapter-utils";
+} from "@stapler/adapter-openclaw-gateway/ui";
+import type { AdapterExecutionContext } from "@stapler/adapter-utils";
 
 function buildContext(
   config: Record<string, unknown>,
@@ -491,8 +491,8 @@ describe("openclaw gateway adapter execute", () => {
       expect(payload?.idempotencyKey).toBe("run-123");
       expect(payload?.sessionKey).toBe("paperclip:issue:issue-123");
       expect(String(payload?.message ?? "")).toContain("wake now");
-      expect(String(payload?.message ?? "")).toContain("PAPERCLIP_RUN_ID=run-123");
-      expect(String(payload?.message ?? "")).toContain("PAPERCLIP_TASK_ID=task-123");
+      expect(String(payload?.message ?? "")).toContain("STAPLER_RUN_ID=run-123");
+      expect(String(payload?.message ?? "")).toContain("STAPLER_TASK_ID=task-123");
       expect(String(payload?.message ?? "")).toContain("## Paperclip Wake Payload");
       expect(String(payload?.message ?? "")).toContain(
         "Treat this wake payload as the highest-priority change for the current heartbeat.",
@@ -502,12 +502,6 @@ describe("openclaw gateway adapter execute", () => {
       );
       expect(String(payload?.message ?? "")).toContain("First comment");
       expect(String(payload?.message ?? "")).toContain("\"commentIds\":[\"comment-1\",\"comment-2\"]");
-      expect(payload?.paperclip).toMatchObject({
-        wake: {
-          latestCommentId: "comment-2",
-          commentIds: ["comment-1", "comment-2"],
-        },
-      });
 
       expect(logs.some((entry) => entry.includes("[openclaw-gateway:event] run=run-123 stream=assistant"))).toBe(true);
     } finally {
@@ -519,6 +513,38 @@ describe("openclaw gateway adapter execute", () => {
     const result = await execute(buildContext({}));
     expect(result.exitCode).toBe(1);
     expect(result.errorCode).toBe("openclaw_gateway_url_missing");
+  });
+
+  it("does not attach a 'paperclip' root property to agent params (regression guard for #3923)", async () => {
+    const gateway = await createMockGatewayServer();
+
+    try {
+      const result = await execute(
+        buildContext(
+          {
+            url: gateway.url,
+            payloadTemplate: { message: "wake now" },
+            waitTimeoutMs: 2000,
+          },
+          {
+            context: {
+              taskId: "task-123",
+              issueId: "issue-123",
+              wakeReason: "issue_assigned",
+              issueIds: ["issue-123"],
+              paperclipWake: { reason: "issue_assigned" },
+            },
+          },
+        ),
+      );
+
+      expect(result.exitCode).toBe(0);
+      const payload = gateway.getAgentPayload();
+      expect(payload).toBeTruthy();
+      expect(payload).not.toHaveProperty("paperclip");
+    } finally {
+      await gateway.close();
+    }
   });
 
   it("returns adapter-managed runtime services from gateway result meta", async () => {

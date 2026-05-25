@@ -11,8 +11,8 @@ import {
   updateIssueSchema,
   upsertIssueDocumentSchema,
   linkIssueApprovalSchema,
-} from "@paperclipai/shared";
-import { PaperclipApiClient } from "./client.js";
+} from "@stapler/shared";
+import { StaplerApiClient } from "./client.js";
 import { formatErrorResponse, formatTextResponse } from "./format.js";
 
 export interface ToolDefinition {
@@ -211,7 +211,7 @@ function selectRuntimeService(
     ?? null;
 }
 
-async function getIssueWorkspaceRuntime(client: PaperclipApiClient, issueId: string) {
+async function getIssueWorkspaceRuntime(client: StaplerApiClient, issueId: string) {
   const context = await client.requestJson("GET", `/issues/${encodeURIComponent(issueId)}/heartbeat-context`);
   const workspace = readCurrentExecutionWorkspace(context);
   return {
@@ -221,7 +221,7 @@ async function getIssueWorkspaceRuntime(client: PaperclipApiClient, issueId: str
   };
 }
 
-export function createToolDefinitions(client: PaperclipApiClient): ToolDefinition[] {
+export function createToolDefinitions(client: StaplerApiClient): ToolDefinition[] {
   return [
     makeTool(
       "paperclipMe",

@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import type {
   CompanyPortabilityAgentManifestEntry,
   CompanyPortabilityCollisionStrategy,
@@ -30,7 +30,7 @@ import type {
   CompanySkill,
   AgentEnvConfig,
   RoutineVariable,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import {
   AGENT_DEFAULT_MAX_CONCURRENT_RUNS,
   ISSUE_PRIORITIES,
@@ -47,12 +47,12 @@ import {
   issueCommentMetadataSchema,
   issueCommentPresentationSchema,
   normalizeAgentUrlKey,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import {
   readPaperclipSkillSyncPreference,
   writePaperclipSkillSyncPreference,
-} from "@paperclipai/adapter-utils/server-utils";
-import { requireOpenCodeModelId } from "@paperclipai/adapter-opencode-local/server";
+} from "@stapler/adapter-utils/server-utils";
+import { ensureOpenCodeModelConfiguredAndAvailable } from "@stapler/adapter-opencode-local/server";
 import { findServerAdapter } from "../adapters/index.js";
 import { forbidden, notFound, unprocessable } from "../errors.js";
 import { ghFetch, gitHubApiBase, resolveRawGitHubUrl } from "./github-fetch.js";
@@ -2862,7 +2862,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
   const issues = issueService(db);
   const companySkills = companySkillService(db);
   const secrets = secretService(db);
-  const strictSecretsMode = process.env.PAPERCLIP_SECRETS_STRICT_MODE === "true";
+  const strictSecretsMode = process.env.STAPLER_SECRETS_STRICT_MODE === "true";
 
   function assertKnownImportAdapterType(type: string | null | undefined): string {
     const adapterType = typeof type === "string" ? type.trim() : "";

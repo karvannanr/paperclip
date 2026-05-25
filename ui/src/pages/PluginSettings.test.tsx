@@ -143,7 +143,29 @@ describe("PluginSettings", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
 
-    mockPluginsApi.get.mockResolvedValue(basePlugin());
+    mockPluginsApi.get.mockResolvedValue({
+      id: "plugin-1",
+      pluginKey: "paperclip.e2b-sandbox-provider",
+      packageName: "@stapler/plugin-e2b",
+      version: "0.1.0",
+      status: "error",
+      categories: ["automation"],
+      manifestJson: {
+        displayName: "E2B Sandbox Provider",
+        version: "0.1.0",
+        description: "E2B environments for Paperclip.",
+        author: "Paperclip",
+        capabilities: ["environment.drivers.register"],
+        environmentDrivers: [
+          {
+            driverKey: "e2b",
+            kind: "sandbox_provider",
+            displayName: "E2B Cloud Sandbox",
+          },
+        ],
+      },
+      lastError: null,
+    });
     mockPluginsApi.dashboard.mockResolvedValue(null);
     mockPluginsApi.health.mockResolvedValue({ pluginId: "plugin-1", status: "ready", healthy: true, checks: [] });
     mockPluginsApi.logs.mockResolvedValue([]);

@@ -55,9 +55,9 @@ const {
   })),
 }));
 
-vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/server-utils")>(
-    "@paperclipai/adapter-utils/server-utils",
+vi.mock("@stapler/adapter-utils/server-utils", async () => {
+  const actual = await vi.importActual<typeof import("@stapler/adapter-utils/server-utils")>(
+    "@stapler/adapter-utils/server-utils",
   );
   return {
     ...actual,
@@ -67,9 +67,9 @@ vi.mock("@paperclipai/adapter-utils/server-utils", async () => {
   };
 });
 
-vi.mock("@paperclipai/adapter-utils/ssh", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/ssh")>(
-    "@paperclipai/adapter-utils/ssh",
+vi.mock("@stapler/adapter-utils/ssh", async () => {
+  const actual = await vi.importActual<typeof import("@stapler/adapter-utils/ssh")>(
+    "@stapler/adapter-utils/ssh",
   );
   return {
     ...actual,
@@ -119,6 +119,7 @@ describe("pi remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Pi Builder",
+        role: null,
         adapterType: "pi_local",
         adapterConfig: {},
       },
@@ -194,25 +195,9 @@ describe("pi remote execution", () => {
       | undefined;
     expect(call?.[2]).toContain("--session");
     expect(call?.[2]).toContain("--skill");
-    expect(call?.[2]).toContain(`${managedRemoteWorkspace}/.paperclip-runtime/pi/skills`);
-    expect(call?.[3].env.PAPERCLIP_WORKSPACE_CWD).toBe(managedRemoteWorkspace);
-    expect(JSON.parse(call?.[3].env.PAPERCLIP_WORKSPACES_JSON ?? "[]")).toEqual([
-      {
-        workspaceId: "workspace-1",
-        cwd: managedRemoteWorkspace,
-        repoUrl: "https://github.com/paperclipai/paperclip.git",
-        repoRef: "main",
-      },
-      {
-        workspaceId: "workspace-2",
-        repoUrl: "https://github.com/paperclipai/paperclip.git",
-        repoRef: "feature/other",
-      },
-    ]);
-    expect(call?.[3].env.PAPERCLIP_API_URL).toBe("http://127.0.0.1:4310");
-    expect(call?.[3].env.PAPERCLIP_API_BRIDGE_MODE).toBe("queue_v1");
-    expect(call?.[3].remoteExecution?.remoteCwd).toBe(managedRemoteWorkspace);
-    expect(startAdapterExecutionTargetPaperclipBridge).toHaveBeenCalledTimes(1);
+    expect(call?.[2]).toContain("/remote/workspace/.paperclip-runtime/pi/skills");
+    expect(call?.[3].env.STAPLER_API_URL).toBe("http://198.51.100.10:3102");
+    expect(call?.[3].remoteExecution?.remoteCwd).toBe("/remote/workspace");
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledTimes(1);
   });
 
@@ -245,6 +230,7 @@ describe("pi remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Pi Builder",
+        role: null,
         adapterType: "pi_local",
         adapterConfig: {},
       },

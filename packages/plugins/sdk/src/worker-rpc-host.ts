@@ -45,7 +45,7 @@ import type {
   PaperclipPluginManifestV1,
   RequestConfirmationInteraction,
   SuggestTasksInteraction,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 
 import type { PaperclipPlugin } from "./define-plugin.js";
 import type {
@@ -258,7 +258,7 @@ export function runWorker(
  * ```ts
  * // worker-bootstrap.ts
  * import plugin from "./worker.js";
- * import { startWorkerRpcHost } from "@paperclipai/plugin-sdk";
+ * import { startWorkerRpcHost } from "@stapler/plugin-sdk";
  *
  * startWorkerRpcHost({ plugin });
  * ```
@@ -296,7 +296,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
     (params: Record<string, unknown>, context: PluginPerformActionContext) => Promise<unknown>
   >();
   const toolHandlers = new Map<string, {
-    declaration: Pick<import("@paperclipai/shared").PluginToolDeclaration, "displayName" | "description" | "parametersSchema">;
+    declaration: Pick<import("@stapler/shared").PluginToolDeclaration, "displayName" | "description" | "parametersSchema">;
     fn: (params: unknown, runCtx: ToolRunContext) => Promise<ToolResult>;
   }>();
 
@@ -415,6 +415,17 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       config: {
         async get() {
           return callHost("config.get", {} as Record<string, never>);
+        },
+        runtime: {
+          async get() {
+            return callHost("config.runtime.get", {} as Record<string, never>);
+          },
+          async set(patch: Record<string, unknown>) {
+            return callHost("config.runtime.set", { patch });
+          },
+          async unset(key: string) {
+            return callHost("config.runtime.unset", { key });
+          },
         },
       },
 
@@ -566,6 +577,12 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       secrets: {
         async resolve(secretRef: string): Promise<string> {
           return callHost("secrets.resolve", { secretRef });
+        },
+        async write(input: { companyId: string; name: string; value: string; description?: string }): Promise<string> {
+          return callHost("secrets.write", input);
+        },
+        async delete(input: { companyId: string; name: string }): Promise<void> {
+          await callHost("secrets.delete", input);
         },
       },
 
@@ -983,6 +1000,18 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
             return callHost("issues.summaries.getOrchestration", input);
           },
         },
+
+        customFields: {
+          async set({ companyId, issueId, key, value }) {
+            return callHost("issues.customFields.set", { companyId, issueId, key, value });
+          },
+          async unset({ companyId, issueId, key }) {
+            return callHost("issues.customFields.unset", { companyId, issueId, key });
+          },
+          async listForIssue({ companyId, issueId }) {
+            return callHost("issues.customFields.listForIssue", { companyId, issueId });
+          },
+        },
       },
 
       agents: {
@@ -1220,7 +1249,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       tools: {
         register(
           name: string,
-          declaration: Pick<import("@paperclipai/shared").PluginToolDeclaration, "displayName" | "description" | "parametersSchema">,
+          declaration: Pick<import("@stapler/shared").PluginToolDeclaration, "displayName" | "description" | "parametersSchema">,
           fn: (params: unknown, runCtx: ToolRunContext) => Promise<ToolResult>,
         ): void {
           toolHandlers.set(name, { declaration, fn });

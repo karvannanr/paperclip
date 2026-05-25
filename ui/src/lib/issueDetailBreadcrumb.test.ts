@@ -11,7 +11,7 @@ import {
   shouldArmIssueDetailInboxQuickArchive,
   withIssueDetailHeaderSeed,
 } from "./issueDetailBreadcrumb";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 
 const sessionStorageMock = (() => {
   const store = new Map<string, string>();
@@ -113,6 +113,7 @@ describe("issueDetailBreadcrumb", () => {
       isUnreadForMe: false,
       createdAt: new Date(),
       updatedAt: new Date(),
+      scheduledFor: null,
       ...overrides,
       workMode: overrides.workMode ?? "standard",
     };

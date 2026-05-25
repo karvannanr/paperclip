@@ -1,3 +1,6 @@
+/** Default timeout (seconds) for adapters that do not specify one. Prevents indefinite hangs. */
+export const DEFAULT_ADAPTER_TIMEOUT_SEC = 1800;
+
 export const COMPANY_STATUSES = ["active", "paused", "archived"] as const;
 export type CompanyStatus = (typeof COMPANY_STATUSES)[number];
 
@@ -36,6 +39,7 @@ export const AGENT_ADAPTER_TYPES = [
   "cursor_cloud",
   "gemini_local",
   "opencode_local",
+  "ollama_local",
   "pi_local",
   "cursor",
   "openclaw_gateway",
@@ -256,6 +260,17 @@ export function pluginOperationIssueOriginKind(pluginKey: string): PluginIssueOr
 export function isPluginOperationIssueOriginKind(originKind: string | null | undefined): boolean {
   return typeof originKind === "string" && /^plugin:[^:]+:operation(?::|$)/.test(originKind);
 }
+
+export const GOAL_VERIFICATION_STATUSES = [
+  "not_started",
+  "pending",
+  "passed",
+  "failed",
+] as const;
+export type GoalVerificationStatus = (typeof GOAL_VERIFICATION_STATUSES)[number];
+
+/** Max auto verification cycles before we require manual retrigger. */
+export const MAX_GOAL_VERIFICATION_ATTEMPTS = 3;
 
 export const ISSUE_RELATION_TYPES = ["blocks"] as const;
 export type IssueRelationType = (typeof ISSUE_RELATION_TYPES)[number];
@@ -487,6 +502,7 @@ export const BILLING_TYPES = [
   "subscription_overage",
   "credits",
   "fixed",
+  "estimated_cost",
   "unknown",
 ] as const;
 export type BillingType = (typeof BILLING_TYPES)[number];
@@ -533,7 +549,7 @@ export type BudgetScopeType = (typeof BUDGET_SCOPE_TYPES)[number];
 export const BUDGET_METRICS = ["billed_cents"] as const;
 export type BudgetMetric = (typeof BUDGET_METRICS)[number];
 
-export const BUDGET_WINDOW_KINDS = ["calendar_month_utc", "lifetime"] as const;
+export const BUDGET_WINDOW_KINDS = ["calendar_day_utc", "calendar_month_utc", "lifetime"] as const;
 export type BudgetWindowKind = (typeof BUDGET_WINDOW_KINDS)[number];
 
 export const BUDGET_THRESHOLD_TYPES = ["soft", "hard"] as const;
@@ -579,6 +595,7 @@ export const HEARTBEAT_RUN_STATUSES = [
   "failed",
   "cancelled",
   "timed_out",
+  "needs_review",
 ] as const;
 export type HeartbeatRunStatus = (typeof HEARTBEAT_RUN_STATUSES)[number];
 
@@ -732,6 +749,7 @@ export const PLUGIN_CAPABILITIES = [
   "issue.subtree.read",
   "issue.comments.read",
   "issue.documents.read",
+  "issue.custom-fields.read",
   "agents.read",
   "goals.read",
   "goals.create",
@@ -754,9 +772,7 @@ export const PLUGIN_CAPABILITIES = [
   "issue.comments.create",
   "issue.interactions.create",
   "issue.documents.write",
-  "projects.managed",
-  "routines.managed",
-  "skills.managed",
+  "issue.custom-fields.write",
   "agents.pause",
   "agents.resume",
   "agents.invoke",
@@ -785,6 +801,8 @@ export const PLUGIN_CAPABILITIES = [
   "api.routes.register",
   "http.outbound",
   "secrets.read-ref",
+  "secrets.write",
+  "plugin.config.write",
   "environment.drivers.register",
   "local.folders",
   // Agent Tools
@@ -1076,6 +1094,8 @@ export const PLUGIN_EVENT_TYPES = [
   "agent.run.finished",
   "agent.run.failed",
   "agent.run.cancelled",
+  "agent.tool.pre_execute",
+  "agent.tool.post_execute",
   "goal.created",
   "goal.updated",
   "approval.created",

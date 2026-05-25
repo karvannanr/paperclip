@@ -30,7 +30,9 @@ COPY packages/adapters/cursor-local/package.json packages/adapters/cursor-local/
 COPY packages/adapters/gemini-local/package.json packages/adapters/gemini-local/
 COPY packages/adapters/grok-local/package.json packages/adapters/grok-local/
 COPY packages/adapters/openclaw-gateway/package.json packages/adapters/openclaw-gateway/
+COPY packages/adapters/ollama-local/package.json packages/adapters/ollama-local/
 COPY packages/adapters/opencode-local/package.json packages/adapters/opencode-local/
+COPY packages/adapters/openai-compat/package.json packages/adapters/openai-compat/
 COPY packages/adapters/pi-local/package.json packages/adapters/pi-local/
 COPY packages/plugins/sdk/package.json packages/plugins/sdk/
 COPY --parents packages/plugins/sandbox-providers/./*/package.json packages/plugins/sandbox-providers/
@@ -46,9 +48,10 @@ FROM base AS build
 WORKDIR /app
 COPY --from=deps /app /app
 COPY . .
-RUN pnpm --filter @paperclipai/ui build
-RUN pnpm --filter @paperclipai/plugin-sdk build
-RUN pnpm --filter @paperclipai/server build
+RUN pnpm --filter @stapler/adapter-utils build
+RUN pnpm --filter @stapler/ui build
+RUN pnpm --filter @stapler/plugin-sdk build
+RUN pnpm --filter @stapler/server build
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
 
 FROM base AS production
@@ -71,13 +74,13 @@ ENV NODE_ENV=production \
   HOST=0.0.0.0 \
   PORT=3100 \
   SERVE_UI=true \
-  PAPERCLIP_HOME=/paperclip \
-  PAPERCLIP_INSTANCE_ID=default \
+  STAPLER_HOME=/paperclip \
+  STAPLER_INSTANCE_ID=default \
   USER_UID=${USER_UID} \
   USER_GID=${USER_GID} \
-  PAPERCLIP_CONFIG=/paperclip/instances/default/config.json \
-  PAPERCLIP_DEPLOYMENT_MODE=authenticated \
-  PAPERCLIP_DEPLOYMENT_EXPOSURE=private \
+  STAPLER_CONFIG=/paperclip/instances/default/config.json \
+  STAPLER_DEPLOYMENT_MODE=authenticated \
+  STAPLER_DEPLOYMENT_EXPOSURE=private \
   OPENCODE_ALLOW_ALL_MODELS=true
 
 VOLUME ["/paperclip"]

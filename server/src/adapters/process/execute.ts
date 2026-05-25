@@ -1,3 +1,4 @@
+import { DEFAULT_ADAPTER_TIMEOUT_SEC } from "@stapler/shared";
 import type { AdapterExecutionContext, AdapterExecutionResult } from "../types.js";
 import {
   asString,
@@ -12,16 +13,22 @@ import {
 } from "../utils.js";
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
-  const { runId, agent, config, onLog, onMeta } = ctx;
+  const { runId, agent, config, onLog, onMeta, authToken } = ctx;
   const command = asString(config.command, "");
   if (!command) throw new Error("Process adapter missing command");
 
   const args = asStringArray(config.args);
   const cwd = asString(config.cwd, process.cwd());
   const envConfig = parseObject(config.env);
+  const hasExplicitApiKey =
+    typeof envConfig.STAPLER_API_KEY === "string" && envConfig.STAPLER_API_KEY.trim().length > 0;
   const env: Record<string, string> = { ...buildPaperclipEnv(agent) };
   for (const [k, v] of Object.entries(envConfig)) {
     if (typeof v === "string") env[k] = v;
+  }
+  env.STAPLER_RUN_ID = runId;
+  if (!hasExplicitApiKey && typeof authToken === "string" && authToken.trim().length > 0) {
+    env.STAPLER_API_KEY = authToken;
   }
   const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
   const resolvedCommand = await resolveCommandForLogs(command, cwd, runtimeEnv);
@@ -31,7 +38,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     resolvedCommand,
   });
 
-  const timeoutSec = asNumber(config.timeoutSec, 0);
+  // timeoutSec: undefined/missing → default (prevents hangs, #3173).
+  //             explicit 0        → unlimited (preserves existing semantics).
+  const timeoutSec =
+    config.timeoutSec === undefined || config.timeoutSec === null
+      ? DEFAULT_ADAPTER_TIMEOUT_SEC
+      : asNumber(config.timeoutSec, DEFAULT_ADAPTER_TIMEOUT_SEC);
   const graceSec = asNumber(config.graceSec, 15);
 
   if (onMeta) {

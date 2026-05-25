@@ -4,6 +4,7 @@ import {
   uuid,
   text,
   integer,
+  real,
   timestamp,
   jsonb,
   index,
@@ -29,6 +30,21 @@ export const agents = pgTable(
     defaultEnvironmentId: uuid("default_environment_id").references(() => environments.id, { onDelete: "set null" }),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
     spentMonthlyCents: integer("spent_monthly_cents").notNull().default(0),
+    /**
+     * Pillar 2 — Self-Critique gate. When set, runs whose self-critique score
+     * falls below this value transition to "needs_review" instead of "succeeded".
+     * 0.0–1.0. Null means the gate is disabled (default).
+     */
+    selfCritiqueThreshold: real("self_critique_threshold"),
+    /**
+     * Pillar 4 — Config-change gate. UUID of the eval_suite that gates
+     * significant config changes (systemPrompt, model, adapterType).
+     * Stored as a bare uuid to avoid a circular schema dependency
+     * (eval_suites already references agents).
+     */
+    smokeSuiteId: uuid("smoke_suite_id"),
+    /** Max allowed drop in avgScore before a config change is rejected. Default 0.1 (10%). */
+    smokeRegressionTolerance: real("smoke_regression_tolerance").notNull().default(0.1),
     pauseReason: text("pause_reason"),
     pausedAt: timestamp("paused_at", { withTimezone: true }),
     permissions: jsonb("permissions").$type<Record<string, unknown>>().notNull().default({}),

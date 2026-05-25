@@ -22,14 +22,15 @@
  * @see PLUGIN_SPEC.md §13.10 — `executeTool`
  */
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import type {
   PaperclipPluginManifestV1,
   PluginRecord,
-} from "@paperclipai/shared";
-import type { ToolRunContext, ToolResult } from "@paperclipai/plugin-sdk";
+} from "@stapler/shared";
+import type { ToolRunContext, ToolResult } from "@stapler/plugin-sdk";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import type { PluginLifecycleManager } from "./plugin-lifecycle.js";
+import type { PluginEventBus } from "./plugin-event-bus.js";
 import {
   createPluginToolRegistry,
   type PluginToolRegistry,
@@ -74,6 +75,8 @@ export interface PluginToolDispatcherOptions {
   lifecycleManager?: PluginLifecycleManager;
   /** Database connection for looking up plugin records. */
   db?: Db;
+  /** Event bus for emitting tool execution events to plugin subscribers. */
+  eventBus?: PluginEventBus;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,12 +153,17 @@ export interface PluginToolDispatcher {
    * This is called automatically when a plugin transitions to `ready`.
    * Can also be called manually for testing or recovery scenarios.
    *
-   * @param pluginId - The plugin's unique identifier
+   * @param pluginId - The plugin's package key (used for tool namespacing, e.g. "acme.foo")
    * @param manifest - The plugin manifest containing tool declarations
+   * @param pluginDbId - The plugin's database UUID (used for worker routing).
+   *   If omitted, defaults to `pluginId`. Pass this when the package key and
+   *   the worker manager key differ — otherwise tool dispatch will fail with
+   *   "worker not running" because the worker manager is keyed by DB UUID.
    */
   registerPluginTools(
     pluginId: string,
     manifest: PaperclipPluginManifestV1,
+    pluginDbId?: string,
   ): void;
 
   /**
@@ -222,11 +230,11 @@ export interface PluginToolDispatcher {
 export function createPluginToolDispatcher(
   options: PluginToolDispatcherOptions = {},
 ): PluginToolDispatcher {
-  const { workerManager, lifecycleManager, db } = options;
+  const { workerManager, lifecycleManager, db, eventBus } = options;
   const log = logger.child({ service: "plugin-tool-dispatcher" });
 
   // Create the underlying tool registry, backed by the worker manager
-  const registry = createPluginToolRegistry(workerManager);
+  const registry = createPluginToolRegistry(workerManager, eventBus);
 
   // Track lifecycle event listeners so we can remove them on teardown
   let enabledListener: ((payload: { pluginId: string; pluginKey: string }) => void) | null = null;
@@ -429,8 +437,9 @@ export function createPluginToolDispatcher(
     registerPluginTools(
       pluginId: string,
       manifest: PaperclipPluginManifestV1,
+      pluginDbId?: string,
     ): void {
-      registry.registerPlugin(pluginId, manifest);
+      registry.registerPlugin(pluginId, manifest, pluginDbId);
     },
 
     unregisterPluginTools(pluginId: string): void {

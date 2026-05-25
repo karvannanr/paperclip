@@ -9,7 +9,7 @@ import {
   getSshEnvLabSupport,
   startSshEnvLabFixture,
   stopSshEnvLabFixture,
-} from "@paperclipai/adapter-utils/ssh";
+} from "@stapler/adapter-utils/ssh";
 import {
   agents,
   companies,
@@ -20,7 +20,7 @@ import {
   environments,
   heartbeatRuns,
   plugins,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -335,6 +335,26 @@ describeEmbeddedPostgres("environmentRuntimeService", () => {
     const statePath = path.join(fixtureRoot, "state.json");
     const fixture = await startSshEnvLabFixture({ statePath });
     const sshConfig = await buildSshEnvLabFixtureConfig(fixture);
+    const healthServer = createServer((req, res) => {
+      if (req.url === "/api/health") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ status: "ok" }));
+        return;
+      }
+      res.writeHead(404).end();
+    });
+    await new Promise<void>((resolve, reject) => {
+      healthServer.once("error", reject);
+      healthServer.listen(0, "127.0.0.1", () => resolve());
+    });
+    const address = healthServer.address();
+    if (!address || typeof address === "string") {
+      await new Promise<void>((resolve) => healthServer.close(() => resolve()));
+      throw new Error("Expected the test health server to listen on a TCP port.");
+    }
+    const runtimeApiUrl = `http://127.0.0.1:${address.port}`;
+    const previousCandidates = process.env.STAPLER_RUNTIME_API_CANDIDATES_JSON;
+    process.env.STAPLER_RUNTIME_API_CANDIDATES_JSON = JSON.stringify([runtimeApiUrl]);
     const { companyId, environment, runId } = await seedEnvironment({
       driver: "ssh",
       name: "Fixture SSH",
@@ -366,6 +386,12 @@ describeEmbeddedPostgres("environmentRuntimeService", () => {
       expect(released[0]?.environment.driver).toBe("ssh");
       expect(released[0]?.lease.status).toBe("released");
     } finally {
+      if (previousCandidates === undefined) {
+        delete process.env.STAPLER_RUNTIME_API_CANDIDATES_JSON;
+      } else {
+        process.env.STAPLER_RUNTIME_API_CANDIDATES_JSON = previousCandidates;
+      }
+      await new Promise<void>((resolve) => healthServer.close(() => resolve()));
     }
   });
 
@@ -427,7 +453,7 @@ describeEmbeddedPostgres("environmentRuntimeService", () => {
     await db.insert(plugins).values({
       id: pluginId,
       pluginKey: "paperclip.fake-plugin-sandbox-provider",
-      packageName: "@paperclipai/plugin-fake-sandbox",
+      packageName: "@stapler/plugin-fake-sandbox",
       version: "1.0.0",
       apiVersion: 1,
       categories: ["automation"],

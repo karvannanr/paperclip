@@ -19,6 +19,30 @@ type PartialConfig = {
   };
 };
 
+function expandHomePrefix(value: string): string {
+  if (value === "~") return os.homedir();
+  if (value.startsWith("~/")) return path.resolve(os.homedir(), value.slice(2));
+  return value;
+}
+
+function resolvePaperclipHomeDir(): string {
+  const envHome = process.env.STAPLER_HOME?.trim();
+  if (envHome) return path.resolve(expandHomePrefix(envHome));
+  return path.resolve(os.homedir(), ".paperclip");
+}
+
+function resolvePaperclipInstanceId(): string {
+  const raw = process.env.STAPLER_INSTANCE_ID?.trim() || "default";
+  if (!/^[a-zA-Z0-9_-]+$/.test(raw)) {
+    throw new Error(`Invalid STAPLER_INSTANCE_ID '${raw}'.`);
+  }
+  return raw;
+}
+
+function resolveDefaultConfigPath(): string {
+  return path.resolve(resolvePaperclipHomeDir(), "instances", resolvePaperclipInstanceId(), "config.json");
+}
+
 function readConfig(configPath: string): PartialConfig | null {
   if (!existsSync(configPath)) return null;
   try {

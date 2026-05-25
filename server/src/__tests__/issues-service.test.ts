@@ -18,19 +18,14 @@ import {
   issues,
   projectWorkspaces,
   projects,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 import { instanceSettingsService } from "../services/instance-settings.ts";
-import {
-  clampIssueListLimit,
-  deriveIssueCommentRunLogAttribution,
-  ISSUE_LIST_MAX_LIMIT,
-  issueService,
-} from "../services/issues.ts";
-import { buildProjectMentionHref, MAX_ISSUE_REQUEST_DEPTH } from "@paperclipai/shared";
+import { clampIssueListLimit, ISSUE_LIST_MAX_LIMIT, issueService } from "../services/issues.ts";
+import { buildProjectMentionHref, MAX_ISSUE_REQUEST_DEPTH } from "@stapler/shared";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;

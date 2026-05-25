@@ -3,6 +3,16 @@ export { companySearchService } from "./company-search.js";
 export { feedbackService } from "./feedback.js";
 export { companySkillService } from "./company-skills.js";
 export { agentService, deduplicateAgentName } from "./agents.js";
+export {
+  agentMemoryService,
+  MemoryContentTooLargeError,
+  getMemoryLimits,
+  DEFAULT_MAX_MEMORIES_PER_AGENT,
+  DEFAULT_MAX_CONTENT_BYTES,
+  DEFAULT_SEARCH_THRESHOLD,
+} from "./agent-memories.js";
+export { companyMemoryService } from "./company-memories.js";
+export { maybeLoadMemoriesForInjection } from "./memory-injection.js";
 export { agentInstructionsService, syncInstructionsBundleConfigFromFilePath } from "./agent-instructions.js";
 export { assetService } from "./assets.js";
 export { documentService, extractLegacyPlanBody } from "./documents.js";
@@ -26,6 +36,8 @@ export { issueApprovalService } from "./issue-approvals.js";
 export { issueReferenceService } from "./issue-references.js";
 export { issueRecoveryActionService } from "./issue-recovery-actions.js";
 export { goalService } from "./goals.js";
+export { outputService } from "./outputs.js";
+export { goalVerificationService } from "./goal-verification.js";
 export { activityService, type ActivityFilters } from "./activity.js";
 export { approvalService } from "./approvals.js";
 export { budgetService } from "./budgets.js";
@@ -70,3 +82,4 @@ export { notifyHireApproved, type NotifyHireApprovedInput } from "./hire-hook.js
 export { publishLiveEvent, subscribeCompanyLiveEvents } from "./live-events.js";
 export { reconcilePersistedRuntimeServicesOnStartup, restartDesiredRuntimeServicesOnStartup } from "./workspace-runtime.js";
 export { createStorageServiceFromConfig, getStorageService } from "../storage/index.js";
+export { issueCustomFieldService } from "./issue-custom-fields.js";

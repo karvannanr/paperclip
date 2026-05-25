@@ -200,10 +200,8 @@ vi.mock("@/components/ui/dialog", () => ({
     showCloseButton?: boolean;
     onEscapeKeyDown?: (event: unknown) => void;
     onPointerDownOutside?: (event: unknown) => void;
-  }) => {
-    dialogContentState.onPointerDownOutside = onPointerDownOutside as typeof dialogContentState.onPointerDownOutside;
-    return <div {...props}>{children}</div>;
-  },
+  }) => <div {...props}>{children}</div>,
+  DialogTitle: ({ children, ...props }: ComponentProps<"h2">) => <h2 {...props}>{children}</h2>,
 }));
 
 vi.mock("@/components/ui/button", () => ({
@@ -222,6 +220,12 @@ vi.mock("@/components/ui/popover", () => ({
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock("@/components/ui/tooltip", () => ({
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  TooltipContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -767,45 +771,115 @@ describe("NewIssueDialog", () => {
     act(() => root.unmount());
   });
 
-  it("keeps priority under the mobile overflow menu", async () => {
+  it("does not show inline title warning on initial render", async () => {
     const { root } = renderDialog(container);
     await flush();
 
-    const priorityChip = container.querySelector('[data-testid="new-issue-priority-chip"]');
-    expect(priorityChip?.className).toContain("hidden");
-    expect(priorityChip?.className).toContain("sm:inline-flex");
-
-    const highPriorityOption = container.querySelector('[data-testid="new-issue-more-priority-high"]');
-    expect(highPriorityOption?.textContent).toContain("High");
-
-    await act(async () => {
-      highPriorityOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flush();
-
-    const selectedHighPriorityOption = container.querySelector('[data-testid="new-issue-more-priority-high"]');
-    expect(selectedHighPriorityOption?.className).toContain("bg-accent");
+    expect(container.textContent).not.toContain("Issue title is required");
 
     act(() => root.unmount());
   });
 
-  it("allows editor autocomplete portal pointer events inside the modal", async () => {
+  it("shows inline title warning and button shake after clicking Create Issue with empty title", async () => {
     const { root } = renderDialog(container);
     await flush();
 
-    const menu = document.createElement("div");
-    menu.setAttribute("data-paperclip-floating-ui", "");
-    const option = document.createElement("button");
-    menu.appendChild(option);
-    document.body.appendChild(menu);
-    const preventDefault = vi.fn();
+    const submitButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Create Issue"));
+    expect(submitButton).not.toBeUndefined();
 
-    dialogContentState.onPointerDownOutside?.({
-      detail: { originalEvent: { target: option } },
-      preventDefault,
+    await act(async () => {
+      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
+    await flush();
 
-    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("Issue title is required");
+    expect(container.textContent).toContain("Please enter an issue title before creating");
+
+    act(() => root.unmount());
+  });
+
+  it("hides inline title warning once a title is entered after an attempt", async () => {
+    const { root } = renderDialog(container);
+    await flush();
+
+    const submitButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Create Issue"));
+    expect(submitButton).not.toBeUndefined();
+
+    // Trigger the warning by clicking with empty title
+    await act(async () => {
+      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+
+    expect(container.textContent).toContain("Issue title is required");
+
+    // Enter a title via nativeInputValueSetter to properly trigger React's onChange
+    const titleInput = container.querySelector('textarea[placeholder="Issue title"]') as HTMLTextAreaElement;
+    expect(titleInput).not.toBeNull();
+
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      "value",
+    )!.set;
+    await act(async () => {
+      nativeInputValueSetter!.call(titleInput, "My new issue");
+      titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await flush();
+
+    expect(container.textContent).not.toContain("Issue title is required");
+
+    act(() => root.unmount());
+  });
+
+  it("does not trigger shake or warning banner when issue creation is pending", async () => {
+    // Make create hang so isPending stays true
+    let resolveCreate: (value: unknown) => void;
+    mockIssuesApi.create.mockReturnValue(new Promise((resolve) => { resolveCreate = resolve; }));
+
+    const { root } = renderDialog(container);
+    await flush();
+
+    // Enter a title and submit to start creation
+    const titleInput = container.querySelector('textarea[placeholder="Issue title"]') as HTMLTextAreaElement;
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      "value",
+    )!.set;
+    await act(async () => {
+      nativeInputValueSetter!.call(titleInput, "Valid title");
+      titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await flush();
+
+    const submitButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Create Issue"));
+
+    await act(async () => {
+      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+
+    // Now creation is pending. The button should show "Creating..."
+    expect(container.textContent).toContain("Creating...");
+
+    // Clicking the button during pending should NOT trigger shake or warning banner
+    // (handleButtonClick returns early when isPending)
+    await act(async () => {
+      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+
+    // The warning banner should NOT appear during pending state
+    expect(container.textContent).not.toContain("Please enter an issue title before creating");
+
+    // Resolve the pending creation to clean up
+    await act(async () => {
+      resolveCreate!({ id: "issue-3", companyId: "company-1", identifier: "PAP-3" });
+    });
+    await flush();
 
     act(() => root.unmount());
   });

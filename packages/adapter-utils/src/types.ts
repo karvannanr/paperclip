@@ -9,6 +9,7 @@ export interface AdapterAgent {
   id: string;
   companyId: string;
   name: string;
+  role: string | null;
   adapterType: string | null;
   adapterConfig: unknown;
 }
@@ -31,6 +32,7 @@ export interface UsageSummary {
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens?: number;
+  thinkingTokens?: number;
 }
 
 export type AdapterBillingType =
@@ -41,6 +43,7 @@ export type AdapterBillingType =
   | "subscription_overage"
   | "credits"
   | "fixed"
+  | "estimated_cost"
   | "unknown";
 
 export interface AdapterRuntimeServiceReport {
@@ -87,6 +90,7 @@ export interface AdapterExecutionResult {
   model?: string | null;
   billingType?: AdapterBillingType | null;
   costUsd?: number | null;
+  retryDelaySec?: number | null;
   resultJson?: Record<string, unknown> | null;
   runtimeServices?: AdapterRuntimeServiceReport[];
   summary?: string | null;
@@ -105,6 +109,25 @@ export interface AdapterSessionCodec {
   deserialize(raw: unknown): Record<string, unknown> | null;
   serialize(params: Record<string, unknown> | null): Record<string, unknown> | null;
   getDisplayId?: (params: Record<string, unknown> | null) => string | null;
+}
+
+/**
+ * A memory entry injected into an agent's execution context at run-start.
+ * Carries only the fields an adapter needs to render the memories prompt section.
+ *
+ * `source` lets adapters render separate sections:
+ *   - agent wiki pages  → `## Knowledge base`
+ *   - agent episodic    → `## Relevant memories`
+ *   - company memories  → `## Company knowledge`
+ */
+export interface InjectedMemory {
+  id: string;
+  content: string;
+  tags: string[];
+  score: number;
+  wikiSlug?: string | null;
+  /** "agent" = this agent's own memory; "company" = shared company knowledge. */
+  source: "agent" | "company";
 }
 
 export interface AdapterInvocationMeta {
@@ -138,6 +161,12 @@ export interface AdapterExecutionContext {
   onMeta?: (meta: AdapterInvocationMeta) => Promise<void>;
   onSpawn?: (meta: { pid: number; processGroupId: number | null; startedAt: string }) => Promise<void>;
   authToken?: string;
+  /**
+   * Top-K agent memories retrieved at run-start and passed to adapters for
+   * injection into the system/user prompt. Only populated when the agent has
+   * `enableMemoryInjection: true` in its config and memories exist.
+   */
+  agentMemoriesForInjection?: InjectedMemory[];
 }
 
 export interface AdapterModel {

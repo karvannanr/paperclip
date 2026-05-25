@@ -1,12 +1,6 @@
 import path from "node:path";
-import { randomUUID } from "node:crypto";
-import {
-  CommandExitError,
-  Sandbox,
-  SandboxNotFoundError,
-  TimeoutError,
-} from "e2b";
-import { definePlugin } from "@paperclipai/plugin-sdk";
+import { CommandExitError, Sandbox, SandboxNotFoundError, TimeoutError } from "e2b";
+import { definePlugin } from "@stapler/plugin-sdk";
 import type {
   PluginEnvironmentAcquireLeaseParams,
   PluginEnvironmentDestroyLeaseParams,
@@ -21,7 +15,7 @@ import type {
   PluginEnvironmentResumeLeaseParams,
   PluginEnvironmentValidateConfigParams,
   PluginEnvironmentValidationResult,
-} from "@paperclipai/plugin-sdk";
+} from "@stapler/plugin-sdk";
 
 interface E2bDriverConfig {
   template: string;

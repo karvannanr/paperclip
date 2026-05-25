@@ -2,9 +2,9 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { executionWorkspaces, issues, projects, projectWorkspaces, workspaceRuntimeServices } from "@paperclipai/db";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import type { Db } from "@stapler/db";
+import { executionWorkspaces, issues, projects, projectWorkspaces, workspaceRuntimeServices } from "@stapler/db";
 import type {
   ExecutionWorkspace,
   ExecutionWorkspaceSummary,
@@ -14,7 +14,7 @@ import type {
   ExecutionWorkspaceConfig,
   WorkspaceRuntimeDesiredState,
   WorkspaceRuntimeService,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { parseProjectExecutionWorkspacePolicy } from "./execution-workspace-policy.js";
 import {
   listCurrentRuntimeServicesForExecutionWorkspaces,

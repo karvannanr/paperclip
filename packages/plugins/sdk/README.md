@@ -1,12 +1,12 @@
-# `@paperclipai/plugin-sdk`
+# `@stapler/plugin-sdk`
 
 Official TypeScript SDK for Paperclip plugin authors.
 
-- **Worker SDK:** `@paperclipai/plugin-sdk` — `definePlugin`, context, lifecycle
-- **UI SDK:** `@paperclipai/plugin-sdk/ui` — React hooks and slot props
-- **Testing:** `@paperclipai/plugin-sdk/testing` — in-memory host harness
-- **Bundlers:** `@paperclipai/plugin-sdk/bundlers` — esbuild/rollup presets
-- **Dev server:** `@paperclipai/plugin-sdk/dev-server` — static UI server + SSE reload
+- **Worker SDK:** `@stapler/plugin-sdk` — `definePlugin`, context, lifecycle
+- **UI SDK:** `@stapler/plugin-sdk/ui` — React hooks and slot props
+- **Testing:** `@stapler/plugin-sdk/testing` — in-memory host harness
+- **Bundlers:** `@stapler/plugin-sdk/bundlers` — esbuild/rollup presets
+- **Dev server:** `@stapler/plugin-sdk/dev-server` — static UI server + SSE reload
 
 Reference: `doc/plugins/PLUGIN_SPEC.md`
 
@@ -14,15 +14,15 @@ Reference: `doc/plugins/PLUGIN_SPEC.md`
 
 | Import | Purpose |
 |--------|--------|
-| `@paperclipai/plugin-sdk` | Worker entry: `definePlugin`, `runWorker`, context types, protocol helpers |
-| `@paperclipai/plugin-sdk/ui` | UI entry: `usePluginData`, `usePluginAction`, `usePluginStream`, `useHostContext`, `useHostNavigation`, slot prop types |
-| `@paperclipai/plugin-sdk/ui/hooks` | Hooks only |
-| `@paperclipai/plugin-sdk/ui/types` | UI types and slot prop interfaces |
-| `@paperclipai/plugin-sdk/testing` | `createTestHarness` for unit/integration tests |
-| `@paperclipai/plugin-sdk/bundlers` | `createPluginBundlerPresets` for worker/manifest/ui builds |
-| `@paperclipai/plugin-sdk/dev-server` | `startPluginDevServer`, `getUiBuildSnapshot` |
-| `@paperclipai/plugin-sdk/protocol` | JSON-RPC protocol types and helpers (advanced) |
-| `@paperclipai/plugin-sdk/types` | Worker context and API types (advanced) |
+| `@stapler/plugin-sdk` | Worker entry: `definePlugin`, `runWorker`, context types, protocol helpers |
+| `@stapler/plugin-sdk/ui` | UI entry: `usePluginData`, `usePluginAction`, `usePluginStream`, `useHostContext`, slot prop types |
+| `@stapler/plugin-sdk/ui/hooks` | Hooks only |
+| `@stapler/plugin-sdk/ui/types` | UI types and slot prop interfaces |
+| `@stapler/plugin-sdk/testing` | `createTestHarness` for unit/integration tests |
+| `@stapler/plugin-sdk/bundlers` | `createPluginBundlerPresets` for worker/manifest/ui builds |
+| `@stapler/plugin-sdk/dev-server` | `startPluginDevServer`, `getUiBuildSnapshot` |
+| `@stapler/plugin-sdk/protocol` | JSON-RPC protocol types and helpers (advanced) |
+| `@stapler/plugin-sdk/types` | Worker context and API types (advanced) |
 
 ## Manifest entrypoints
 
@@ -34,7 +34,7 @@ In your plugin manifest you declare:
 ## Install
 
 ```bash
-pnpm add @paperclipai/plugin-sdk
+pnpm add @stapler/plugin-sdk
 ```
 
 ## Current deployment caveats
@@ -55,7 +55,7 @@ If you are authoring a plugin for others to deploy, treat npm-packaged installat
 ## Worker quick start
 
 ```ts
-import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
+import { definePlugin, runWorker } from "@stapler/plugin-sdk";
 
 const plugin = definePlugin({
   async setup(ctx) {
@@ -224,7 +224,7 @@ Slot types describe where a component mounts. Most values also exist as launcher
 
 **Scope** describes whether the slot requires an entity to render. **Global** slots render without a specific entity but still receive the active `companyId` through `PluginHostContext` — use it to scope data fetches to the current company. **Entity** slots additionally require `entityId` and `entityType` (e.g. a detail tab on a specific issue).
 
-**Entity types** (for `entityTypes` on slots): `project` \| `issue` \| `agent` \| `goal` \| `run` \| `comment`. Full list: import `PLUGIN_UI_SLOT_TYPES` and `PLUGIN_UI_SLOT_ENTITY_TYPES` from `@paperclipai/plugin-sdk`.
+**Entity types** (for `entityTypes` on slots): `project` \| `issue` \| `agent` \| `goal` \| `run` \| `comment`. Full list: import `PLUGIN_UI_SLOT_TYPES` and `PLUGIN_UI_SLOT_ENTITY_TYPES` from `@stapler/plugin-sdk`.
 
 ### Slot component descriptions
 
@@ -368,7 +368,7 @@ Declare in `manifest.capabilities`. Grouped by scope:
 | | `ui.commentAnnotation.register` |
 | | `ui.action.register` |
 
-Full list in code: import `PLUGIN_CAPABILITIES` from `@paperclipai/plugin-sdk`.
+Full list in code: import `PLUGIN_CAPABILITIES` from `@stapler/plugin-sdk`.
 
 ### Restricted Database Namespace
 
@@ -543,7 +543,7 @@ Plugin-originated mutations are logged with `actorType: "plugin"` and details fi
 ## UI quick start
 
 ```tsx
-import { usePluginData, usePluginAction } from "@paperclipai/plugin-sdk/ui";
+import { usePluginData, usePluginAction } from "@stapler/plugin-sdk/ui";
 
 export function DashboardWidget() {
   const { data } = usePluginData<{ status: string }>("health");
@@ -565,7 +565,7 @@ export function DashboardWidget() {
 Fetches data from the worker's registered `getData` handler. Re-fetches when `params` changes. Returns `{ data, loading, error, refresh }`.
 
 ```tsx
-import { usePluginData } from "@paperclipai/plugin-sdk/ui";
+import { usePluginData } from "@stapler/plugin-sdk/ui";
 
 interface SyncStatus {
   lastSyncAt: string;
@@ -598,7 +598,7 @@ Returns an async function that calls the worker's `performAction` handler. Throw
 
 ```tsx
 import { useState } from "react";
-import { usePluginAction, type PluginBridgeError } from "@paperclipai/plugin-sdk/ui";
+import { usePluginAction, type PluginBridgeError } from "@stapler/plugin-sdk/ui";
 
 export function ResyncButton({ context }: PluginWidgetProps) {
   const resync = usePluginAction("resync");
@@ -633,8 +633,8 @@ export function ResyncButton({ context }: PluginWidgetProps) {
 Reads the active company, project, entity, and user context. Use this to scope data fetches and actions.
 
 ```tsx
-import { useHostContext, usePluginData } from "@paperclipai/plugin-sdk/ui";
-import type { PluginDetailTabProps } from "@paperclipai/plugin-sdk/ui";
+import { useHostContext, usePluginData } from "@stapler/plugin-sdk/ui";
+import type { PluginDetailTabProps } from "@stapler/plugin-sdk/ui";
 
 export function IssueLinearLink({ context }: PluginDetailTabProps) {
   const { companyId, entityId, entityType } = context;
@@ -670,7 +670,7 @@ Avoid raw same-origin `href`s or `window.location.assign()` for Paperclip-intern
 Subscribes to a real-time event stream pushed from the plugin worker via SSE. The worker pushes events using `ctx.streams.emit(channel, event)` and the hook receives them as they arrive. Returns `{ events, lastEvent, connecting, connected, error, close }`.
 
 ```tsx
-import { usePluginStream } from "@paperclipai/plugin-sdk/ui";
+import { usePluginStream } from "@stapler/plugin-sdk/ui";
 
 interface ChatToken {
   text: string;
@@ -810,7 +810,7 @@ export function AssignmentControls({ companyId }: { companyId: string }) {
 
 ### Slot component props
 
-Each slot type receives a typed props object with `context: PluginHostContext`. Import from `@paperclipai/plugin-sdk/ui`.
+Each slot type receives a typed props object with `context: PluginHostContext`. Import from `@stapler/plugin-sdk/ui`.
 
 | Slot type | Props interface | `context` extras |
 |-----------|----------------|------------------|
@@ -829,8 +829,8 @@ Each slot type receives a typed props object with `context: PluginHostContext`. 
 Example detail tab with entity context:
 
 ```tsx
-import type { PluginDetailTabProps } from "@paperclipai/plugin-sdk/ui";
-import { usePluginData } from "@paperclipai/plugin-sdk/ui";
+import type { PluginDetailTabProps } from "@stapler/plugin-sdk/ui";
+import { usePluginData } from "@stapler/plugin-sdk/ui";
 
 export function AgentMetricsTab({ context }: PluginDetailTabProps) {
   const { data, loading } = usePluginData<Record<string, string>>("agent-metrics", {
@@ -919,10 +919,7 @@ Plugins can add a link under each project in the sidebar via the `projectSidebar
 Minimal React component that links to the project’s plugin tab (see project detail tabs in the spec):
 
 ```tsx
-import {
-  useHostNavigation,
-  type PluginProjectSidebarItemProps,
-} from "@paperclipai/plugin-sdk/ui";
+import type { PluginProjectSidebarItemProps } from "@stapler/plugin-sdk/ui";
 
 export function FilesLink({ context }: PluginProjectSidebarItemProps) {
   const hostNavigation = useHostNavigation();
@@ -971,7 +968,7 @@ import { useState } from "react";
 import {
   useHostContext,
   usePluginAction,
-} from "@paperclipai/plugin-sdk/ui";
+} from "@stapler/plugin-sdk/ui";
 
 export function SyncToolbarButton() {
   const context = useHostContext();
@@ -1128,7 +1125,7 @@ ctx.actions.register("ask-agent", async (params) => {
 
 ```tsx
 import { useState } from "react";
-import { usePluginAction, usePluginStream } from "@paperclipai/plugin-sdk/ui";
+import { usePluginAction, usePluginStream } from "@stapler/plugin-sdk/ui";
 
 interface AgentEvent {
   type: "chunk" | "done" | "error";
@@ -1187,7 +1184,7 @@ Exported types: `AgentSession`, `AgentSessionEvent`, `AgentSessionSendResult`, `
 ## Testing utilities
 
 ```ts
-import { createTestHarness } from "@paperclipai/plugin-sdk/testing";
+import { createTestHarness } from "@stapler/plugin-sdk/testing";
 import plugin from "../src/worker.js";
 import manifest from "../src/manifest.js";
 
@@ -1199,7 +1196,7 @@ await harness.emit("issue.created", { issueId: "iss_1" }, { entityId: "iss_1", e
 ## Bundler presets
 
 ```ts
-import { createPluginBundlerPresets } from "@paperclipai/plugin-sdk/bundlers";
+import { createPluginBundlerPresets } from "@stapler/plugin-sdk/bundlers";
 
 const presets = createPluginBundlerPresets({ uiEntry: "src/ui/index.tsx" });
 // presets.esbuild.worker / presets.esbuild.manifest / presets.esbuild.ui
@@ -1215,7 +1212,7 @@ paperclip-plugin-dev-server --root . --ui-dir dist/ui --port 4177
 Or programmatically:
 
 ```ts
-import { startPluginDevServer } from "@paperclipai/plugin-sdk/dev-server";
+import { startPluginDevServer } from "@stapler/plugin-sdk/dev-server";
 const server = await startPluginDevServer({ rootDir: process.cwd() });
 ```
 

@@ -2,17 +2,8 @@ import { randomUUID } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
 import { z } from "zod";
-import { and, desc, eq, inArray, notInArray } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import {
-  activityLog,
-  executionWorkspaces,
-  heartbeatRuns,
-  issueExecutionDecisions,
-  issueRelations,
-  issues as issueRows,
-  projectWorkspaces,
-} from "@paperclipai/db";
+import type { Db } from "@stapler/db";
+import { issueExecutionDecisions } from "@stapler/db";
 import {
   addIssueCommentSchema,
   acceptIssueThreadInteractionSchema,
@@ -46,10 +37,8 @@ import {
   type CompanySearchQuery,
   type CompanySearchResponse,
   type ExecutionWorkspace,
-  type IssueRelationIssueSummary,
-  type SuccessfulRunHandoffState,
-} from "@paperclipai/shared";
-import { trackAgentTaskCompleted } from "@paperclipai/shared/telemetry";
+} from "@stapler/shared";
+import { trackAgentTaskCompleted } from "@stapler/shared/telemetry";
 import { getTelemetryClient } from "../telemetry.js";
 import type { StorageService } from "../storage/types.js";
 import { validate } from "../middleware/validate.js";
@@ -75,6 +64,7 @@ import {
   projectService,
   routineService,
   workProductService,
+  issueCustomFieldService,
 } from "../services/index.js";
 import { logger } from "../middleware/logger.js";
 import { conflict, forbidden, HttpError, notFound, unauthorized, unprocessable } from "../errors.js";
@@ -96,11 +86,7 @@ import { executionWorkspaceService as executionWorkspaceServiceDirect } from "..
 import { feedbackService } from "../services/feedback.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { environmentService } from "../services/environments.js";
-import { redactSensitiveText } from "../redaction.js";
-import {
-  createCompanySearchRateLimiter,
-  type CompanySearchRateLimiter,
-} from "../services/company-search-rate-limit.js";
+import { environmentRunOrchestrator } from "../services/environment-run-orchestrator.js";
 import {
   applyIssueExecutionPolicyTransition,
   normalizeIssueExecutionPolicy,
@@ -622,7 +608,12 @@ function shouldImplicitlyMoveCommentedIssueToTodo(input: {
   // Only human comments should implicitly reopen finished work.
   // Agent-authored comments remain communicative unless reopen was explicit.
   if (input.actorType !== "user") return false;
-  if (!isClosedIssueStatus(input.issueStatus) && input.issueStatus !== "blocked") return false;
+  // Done and cancelled issues require an explicit reopen: true signal — a
+  // board comment alone (including automated routine board comments) must not
+  // silently revert a terminal decision.  Only blocked issues auto-resume on
+  // a user comment because the user is typically acknowledging that the
+  // blocker has been resolved.
+  if (input.issueStatus !== "blocked") return false;
   if (typeof input.assigneeAgentId !== "string" || input.assigneeAgentId.length === 0) return false;
   return true;
 }
@@ -868,6 +859,7 @@ export function issueRoutes(
   const executionWorkspacesSvc = executionWorkspaceServiceDirect(db);
   const workProductsSvc = workProductService(db);
   const documentsSvc = documentService(db);
+  const issueCustomFieldsSvc = issueCustomFieldService(db);
   const issueReferencesSvc = issueReferenceService(db);
   const issueThreadInteractionsSvc = issueThreadInteractionService(db);
   const routinesSvc = routineService(db, {
@@ -884,217 +876,9 @@ export function issueRoutes(
   };
   const feedbackExportService = opts?.feedbackExportService;
   const environmentsSvc = environmentService(db);
-
-  async function cancelScheduledRetrySupersededByComment(input: {
-    scheduledRetryRunId: string | null | undefined;
-    issue: { id: string; companyId: string };
-    actor: ReturnType<typeof getActorInfo>;
-  }) {
-    const scheduledRetryRunId = readNonEmptyString(input.scheduledRetryRunId);
-    if (!scheduledRetryRunId) return null;
-
-    try {
-      const cancelled = await heartbeat.cancelRun(scheduledRetryRunId);
-      const cancelledRunId = cancelled?.id ?? scheduledRetryRunId;
-      await logActivity(db, {
-        companyId: input.issue.companyId,
-        actorType: input.actor.actorType,
-        actorId: input.actor.actorId,
-        agentId: input.actor.agentId,
-        runId: input.actor.runId,
-        action: "heartbeat.cancelled",
-        entityType: "heartbeat_run",
-        entityId: cancelledRunId,
-        details: {
-          source: "issue_comment_scheduled_retry_superseded",
-          issueId: input.issue.id,
-        },
-      });
-      return cancelledRunId;
-    } catch (err) {
-      logger.error(
-        { err, issueId: input.issue.id, runId: scheduledRetryRunId },
-        "failed to cancel scheduled retry superseded by issue comment",
-      );
-      throw err;
-    }
-  }
-
-  async function classifySourceRecoveryRevalidation(input: {
-    issue: IssueRouteSnapshot;
-    trigger: RecoveryRevalidationTrigger;
-    statusChanged?: boolean;
-    assigneeChanged?: boolean;
-    blockersChanged?: boolean;
-    executionPolicyChanged?: boolean;
-    monitorChanged?: boolean;
-    documentChanged?: boolean;
-    workProductChanged?: boolean;
-    resumeRequested?: boolean;
-    reopened?: boolean;
-    blockedToTodoRecovery?: boolean;
-  }): Promise<string | null> {
-    const { issue } = input;
-    if (issue.status === "done" || issue.status === "cancelled") {
-      return `Recovery action became stale because the source issue reached ${issue.status}.`;
-    }
-    if (input.blockedToTodoRecovery === true) {
-      return "Recovery action became stale because the source issue was manually moved from blocked to todo.";
-    }
-
-    if (input.trigger === "read_projection") return null;
-    if (
-      input.trigger === "comment" &&
-      input.resumeRequested !== true &&
-      input.reopened !== true &&
-      input.statusChanged !== true
-    ) {
-      return null;
-    }
-
-    const durableSourceChange =
-      input.statusChanged === true ||
-      input.assigneeChanged === true ||
-      input.blockersChanged === true ||
-      input.executionPolicyChanged === true ||
-      input.monitorChanged === true ||
-      input.documentChanged === true ||
-      input.workProductChanged === true ||
-      input.resumeRequested === true ||
-      input.reopened === true;
-    if (!durableSourceChange) return null;
-
-    if (issue.status === "blocked") {
-      const readiness = await svc.getDependencyReadiness(issue.id);
-      if (readiness.unresolvedBlockerCount > 0) {
-        return "Recovery action became stale because the source issue now has unresolved first-class blockers.";
-      }
-      return null;
-    }
-
-    if (issue.assigneeUserId && issue.status !== "done" && issue.status !== "cancelled") {
-      return "Recovery action became stale because the source issue now has a human owner.";
-    }
-
-    if ((issue.status === "todo" || issue.status === "in_progress") && issue.assigneeAgentId) {
-      return `Recovery action became stale because the source issue is ${issue.status} with an agent owner.`;
-    }
-
-    if (issue.status === "in_review") {
-      const executionState = parseIssueExecutionState(issue.executionState);
-      const participant = executionState?.status === "pending" ? executionState.currentParticipant : null;
-      if (
-        (participant?.type === "agent" && readNonEmptyString(participant.agentId)) ||
-        (participant?.type === "user" && readNonEmptyString(participant.userId))
-      ) {
-        return "Recovery action became stale because the source issue now has a typed review participant.";
-      }
-
-      const interactions = await issueThreadInteractionsSvc.listForIssue(issue.id);
-      if (interactions.some((interaction) => interaction.status === "pending")) {
-        return "Recovery action became stale because the source issue now has a pending issue interaction.";
-      }
-
-      const approvals = await issueApprovalsSvc.listApprovalsForIssue(issue.id);
-      if (approvals.some((approval) => approval.status === "pending" || approval.status === "revision_requested")) {
-        return "Recovery action became stale because the source issue now has a pending approval.";
-      }
-    }
-
-    const monitor = summarizeIssueMonitor(issue, normalizeIssueExecutionPolicy(issue.executionPolicy ?? null));
-    if (monitor.nextCheckAt && Date.parse(monitor.nextCheckAt) > Date.now()) {
-      return "Recovery action became stale because the source issue now has a scheduled monitor.";
-    }
-
-    return null;
-  }
-
-  async function revalidateActiveSourceRecovery(input: {
-    issue: IssueRouteSnapshot;
-    trigger: RecoveryRevalidationTrigger;
-    actor?: ReturnType<typeof getActorInfo> | null;
-    activeRecoveryAction?: Awaited<ReturnType<typeof recoveryActionsSvc.getActiveForIssue>> | null;
-    statusChanged?: boolean;
-    assigneeChanged?: boolean;
-    blockersChanged?: boolean;
-    executionPolicyChanged?: boolean;
-    monitorChanged?: boolean;
-    documentChanged?: boolean;
-    workProductChanged?: boolean;
-    resumeRequested?: boolean;
-    reopened?: boolean;
-    blockedToTodoRecovery?: boolean;
-  }) {
-    const activeRecoveryAction =
-      input.activeRecoveryAction === undefined
-        ? await recoveryActionsSvc.getActiveForIssue(input.issue.companyId, input.issue.id)
-        : input.activeRecoveryAction;
-    if (!activeRecoveryAction) return null;
-
-    const resolutionNote = await classifySourceRecoveryRevalidation(input);
-    if (!resolutionNote) return activeRecoveryAction;
-
-    const resolved = await recoveryActionsSvc.resolveActiveForIssue({
-      companyId: input.issue.companyId,
-      sourceIssueId: input.issue.id,
-      actionId: activeRecoveryAction.id,
-      status: "cancelled",
-      outcome: "cancelled",
-      resolutionNote,
-    });
-    if (!resolved) return activeRecoveryAction;
-
-    const actor = input.actor;
-    await logActivity(db, {
-      companyId: input.issue.companyId,
-      actorType: actor?.actorType ?? "system",
-      actorId: actor?.actorId ?? "system",
-      agentId: actor?.agentId ?? null,
-      runId: actor?.runId ?? null,
-      action: "issue.recovery_action_resolved",
-      entityType: "issue",
-      entityId: input.issue.id,
-      details: {
-        identifier: input.issue.identifier,
-        recoveryActionId: resolved.id,
-        recoveryActionStatus: resolved.status,
-        outcome: resolved.outcome,
-        sourceIssueStatus: input.issue.status,
-        resolutionNote: resolved.resolutionNote,
-        source: "source_revalidation",
-        trigger: input.trigger,
-      },
-    });
-
-    return null;
-  }
-
-  async function revalidateActiveSourceRecoveryForRead(input: Parameters<typeof revalidateActiveSourceRecovery>[0]) {
-    try {
-      return await revalidateActiveSourceRecovery(input);
-    } catch (err) {
-      logger.warn(
-        { err, issueId: input.issue.id, trigger: input.trigger },
-        "failed to revalidate recovery action during read projection",
-      );
-      return input.activeRecoveryAction ?? null;
-    }
-  }
-
-  async function revalidateActiveSourceRecoveryAfterCommittedWrite(
-    input: Parameters<typeof revalidateActiveSourceRecovery>[0],
-  ) {
-    try {
-      return await revalidateActiveSourceRecovery(input);
-    } catch (err) {
-      logger.warn(
-        { err, issueId: input.issue.id, trigger: input.trigger },
-        "failed to revalidate recovery action after committed issue write",
-      );
-      return input.activeRecoveryAction ?? null;
-    }
-  }
-
+  const envOrchestrator = environmentRunOrchestrator(db, {
+    pluginWorkerManager: opts.pluginWorkerManager,
+  });
   function withContentPath<T extends { id: string }>(attachment: T) {
     return {
       ...attachment,
@@ -2026,6 +1810,7 @@ export function issueRoutes(
       commentCursor,
       wakeComment,
       relations,
+      children,
       blockerAttention,
       productivityReview,
       scheduledRetry,
@@ -2040,6 +1825,7 @@ export function issueRoutes(
         svc.getCommentCursor(issue.id),
         wakeCommentId ? svc.getComment(wakeCommentId) : null,
         svc.getRelationSummaries(issue.id),
+        svc.list(issue.companyId, { parentId: issue.id, limit: 100 }),
         svc.listBlockerAttention(issue.companyId, [issue]).then((map) => map.get(issue.id) ?? null),
         svc.listProductivityReviews(issue.companyId, [issue.id]).then((map) => map.get(issue.id) ?? null),
         svc.getCurrentScheduledRetry(issue.id),
@@ -4324,6 +4110,13 @@ export function issueRoutes(
 
       const becameTerminal =
         !["done", "cancelled"].includes(existing.status) && ["done", "cancelled"].includes(issue.status);
+      if (becameTerminal) {
+        envOrchestrator
+          .releaseForIssue({ issueId: issue.id, companyId: issue.companyId })
+          .catch((err) =>
+            logger.warn({ err, issueId: issue.id }, "failed to release environment leases on issue terminal status"),
+          );
+      }
       if (becameTerminal && issue.parentId) {
         const parent = await svc.getWakeableParentAfterChildCompletion(issue.parentId);
         if (parent) {
@@ -5693,6 +5486,18 @@ export function issueRoutes(
     });
 
     res.json({ ok: true });
+  });
+
+  router.get("/issues/:id/custom-fields", async (req, res) => {
+    const id = req.params.id as string;
+    const issue = await svc.getById(id);
+    if (!issue) {
+      res.status(404).json({ error: "Issue not found" });
+      return;
+    }
+    assertCompanyAccess(req, issue.companyId);
+    const fields = await issueCustomFieldsSvc.listAllForIssue({ companyId: issue.companyId, issueId: issue.id });
+    res.json({ customFields: fields });
   });
 
   return router;

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { isCodexUnknownSessionError, parseCodexJsonl } from "@paperclipai/adapter-codex-local/server";
-import { parseCodexStdoutLine } from "@paperclipai/adapter-codex-local/ui";
-import { printCodexStreamEvent } from "@paperclipai/adapter-codex-local/cli";
+import { isCodexUnknownSessionError, parseCodexJsonl } from "@stapler/adapter-codex-local/server";
+import { parseCodexStdoutLine } from "@stapler/adapter-codex-local/ui";
+import { printCodexStreamEvent } from "@stapler/adapter-codex-local/cli";
 
 describe("codex_local parser", () => {
   it("extracts session, summary, usage, and terminal error message", () => {
@@ -30,6 +30,18 @@ describe("codex_local stale session detection", () => {
       "2026-02-19T19:58:53.281939Z ERROR codex_core::rollout::list: state db missing rollout path for thread 019c775d-967c-7ef1-acc7-e396dc2c87cc";
 
     expect(isCodexUnknownSessionError("", stderr)).toBe(true);
+  });
+
+  it("treats model-mismatch resume errors as an unknown session error", () => {
+    const stdout = JSON.stringify({
+      type: "item.completed",
+      item: {
+        type: "error",
+        message: "This session was recorded with model `claude-sonnet-4` but is resuming with `gpt-5-nano`.",
+      },
+    });
+
+    expect(isCodexUnknownSessionError(stdout, "")).toBe(true);
   });
 });
 

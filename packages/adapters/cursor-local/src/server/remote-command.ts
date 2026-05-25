@@ -2,8 +2,8 @@ import path from "node:path";
 import {
   runAdapterExecutionTargetShellCommand,
   type AdapterExecutionTarget,
-} from "@paperclipai/adapter-utils/execution-target";
-import { ensurePathInEnv } from "@paperclipai/adapter-utils/server-utils";
+} from "@stapler/adapter-utils/execution-target";
+import { ensurePathInEnv } from "@stapler/adapter-utils/server-utils";
 
 const DEFAULT_CURSOR_COMMAND_BASENAMES = new Set(["agent", "cursor-agent"]);
 // `.local/bin` first because the official Cursor Agent installer drops the
@@ -78,13 +78,9 @@ async function readSandboxCursorRuntimeInfo(input: {
   timeoutSec: number;
   graceSec: number;
 }): Promise<SandboxCursorRuntimeInfo> {
-  const preferredBasenames =
-    !hasPathSeparator(input.command)
-      ? preferredSandboxCommandBasenames(input.command)
-      : [];
-  const hintedRemoteSystemHomeDir = input.remoteSystemHomeDirHint?.trim() || null;
-  const homeMarker = "__PAPERCLIP_CURSOR_HOME__:";
-  const preferredMarker = "__PAPERCLIP_CURSOR_AGENT__:";
+  const shouldCheckPreferredCommand = isDefaultCursorCommand(input.command) && !hasPathSeparator(input.command);
+  const homeMarker = "__STAPLER_CURSOR_HOME__:";
+  const preferredMarker = "__STAPLER_CURSOR_AGENT__:";
   try {
     // When the caller has already resolved the remote `$HOME`, probe absolute
     // paths so the shell doesn't depend on its own environment to interpret

@@ -4,8 +4,8 @@ import { act } from "react";
 import type { ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { DocumentRevision, Issue, IssueDocument } from "@paperclipai/shared";
-import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@paperclipai/shared";
+import type { DocumentRevision, Issue, IssueDocument } from "@stapler/shared";
+import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IssueDocumentsSection } from "./IssueDocumentsSection";
 import { queryKeys } from "../lib/queryKeys";
@@ -240,6 +240,7 @@ function createIssue(): Issue {
     startedAt: null,
     completedAt: null,
     cancelledAt: null,
+    scheduledFor: null,
     hiddenAt: null,
     labels: [],
     labelIds: [],

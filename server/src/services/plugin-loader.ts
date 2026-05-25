@@ -31,13 +31,13 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import type {
   PaperclipPluginManifestV1,
   PluginLauncherDeclaration,
   PluginRecord,
   PluginUiSlotDeclaration,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { logger } from "../middleware/logger.js";
 import { pluginManifestValidator } from "./plugin-manifest-validator.js";
 import { pluginCapabilityValidator } from "./plugin-capability-validator.js";
@@ -544,7 +544,7 @@ export interface PluginLoader {
  */
 export function isPluginPackageName(name: string): boolean {
   if (name.startsWith(NPM_PLUGIN_PACKAGE_PREFIX)) return true;
-  // Also accept scoped packages like @acme/plugin-linear or @paperclipai/plugin-*
+  // Also accept scoped packages like @acme/plugin-linear or @stapler/plugin-*
   if (name.includes("/")) {
     const localPart = name.split("/")[1] ?? "";
     return localPart.startsWith("plugin-");
@@ -964,11 +964,17 @@ export function pluginLoader(
     let raw: unknown;
 
     try {
+      // Append mtime as a query param so Node.js bypasses its module cache
+      // when the manifest file has been modified (e.g. during plugin dev).
+      let cacheBustedPath = manifestPath;
+      try {
+        const fileStat = await stat(manifestPath);
+        cacheBustedPath = `${manifestPath}?v=${fileStat.mtimeMs}`;
+      } catch {
+        // stat failed — fall back to the plain path (no cache-busting)
+      }
       // Dynamic import works for both .js (ESM) and .cjs (CJS) manifests
-      const manifestUrl = pathToFileURL(manifestPath);
-      const manifestStat = await stat(manifestPath);
-      manifestUrl.searchParams.set("mtime", String(Math.trunc(manifestStat.mtimeMs)));
-      const mod = await import(manifestUrl.href) as Record<string, unknown>;
+      const mod = await import(cacheBustedPath) as Record<string, unknown>;
       // The manifest may be the default export or the module itself
       raw = mod["default"] ?? mod;
     } catch (err) {
@@ -1855,7 +1861,7 @@ export function pluginLoader(
       };
 
       // Repo-local plugin installs can resolve workspace TS sources at runtime
-      // (for example @paperclipai/shared exports). Run those workers through
+      // (for example @stapler/shared exports). Run those workers through
       // the tsx loader so first-party example plugins work in development.
       if (activePlugin.packagePath && existsSync(DEV_TSX_LOADER_PATH)) {
         workerOptions.execArgv = ["--import", DEV_TSX_LOADER_PATH];
@@ -1932,7 +1938,9 @@ export function pluginLoader(
       // ------------------------------------------------------------------
       const toolDeclarations = manifest.tools ?? [];
       if (toolDeclarations.length > 0) {
-        toolDispatcher.registerPluginTools(pluginKey, manifest);
+        // Pass pluginId (DB UUID) so the tool registry can route execution to
+        // the worker manager, which is keyed by UUID rather than package key.
+        toolDispatcher.registerPluginTools(pluginKey, manifest, pluginId);
         registered.tools = toolDeclarations.length;
 
         log.info(

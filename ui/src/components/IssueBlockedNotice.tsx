@@ -1,13 +1,5 @@
-import type {
-  IssueBlockerAttention,
-  IssueRecoveryAction,
-  IssueRelationIssueSummary,
-  IssueScheduledRetry,
-  SuccessfulRunHandoffState,
-} from "@paperclipai/shared";
-import { AlertTriangle, CheckCircle2, Flag, Loader2, RotateCcw } from "lucide-react";
-import { Link } from "@/lib/router";
-import { Button } from "@/components/ui/button";
+import type { IssueBlockerAttention, IssueRelationIssueSummary } from "@stapler/shared";
+import { AlertTriangle } from "lucide-react";
 import { createIssueDetailPath } from "../lib/issueDetailBreadcrumb";
 import { formatMonitorOffset } from "../lib/issue-monitor";
 import { useRetryNowMutation } from "../hooks/useRetryNowMutation";

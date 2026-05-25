@@ -57,4 +57,7 @@ tests/release-smoke/playwright-report/
 .superset/
 .superpowers/
 .claude/worktrees/
-.herenow
+
+# stapler.sh runtime artifacts
+.stapler.log
+.stapler.pid

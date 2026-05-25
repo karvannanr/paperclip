@@ -58,14 +58,9 @@ describe("command managed runtime", () => {
         const command =
           input.command === "sh" ? "/bin/sh" : input.command === "bash" ? "/bin/bash" : input.command;
         const args = [...(input.args ?? [])];
-        if (
-          input.stdin != null &&
-          (input.command === "sh" || input.command === "bash") &&
-          (args[0] === "-c" || args[0] === "-lc") &&
-          typeof args[1] === "string"
-        ) {
-          env.PAPERCLIP_TEST_STDIN = input.stdin;
-          args[1] = `printf '%s' \"$PAPERCLIP_TEST_STDIN\" | (${args[1]})`;
+        if (input.stdin != null && input.command === "sh" && args[0] === "-lc" && typeof args[1] === "string") {
+          env.STAPLER_TEST_STDIN = input.stdin;
+          args[1] = `printf '%s' \"$STAPLER_TEST_STDIN\" | (${args[1]})`;
         }
         try {
           const result = await execFile(command, args, {

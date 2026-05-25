@@ -110,7 +110,17 @@ export type PluginWebhookDeclarationInput = z.infer<typeof pluginWebhookDeclarat
  * @see PLUGIN_SPEC.md §11 — Agent Tools
  */
 export const pluginToolDeclarationSchema = z.object({
-  name: z.string().min(1),
+  // Tool names are namespaced at runtime as `<plugin-id>:<tool-name>` (see
+  // `plugin-tool-registry.ts` — `lastIndexOf(':')` is the only delimiter), so
+  // the bare name must not contain ':'. We additionally require a lowercase
+  // alnum allowlist to mirror `pluginEnvironmentDriverDeclarationSchema.driverKey`
+  // and to keep whitespace, control chars, path separators, and unicode
+  // lookalikes out of the registry key. PLA-58 surfaced a `cad:run_script` typo
+  // that this catches at install/upgrade.
+  name: z.string().min(1).regex(
+    /^[a-z0-9][a-z0-9._-]*$/,
+    "Tool name must start with a lowercase alphanumeric and contain only lowercase letters, digits, dots, hyphens, or underscores",
+  ),
   displayName: z.string().min(1),
   description: z.string().min(1),
   parametersSchema: jsonSchemaSchema,
@@ -603,10 +613,43 @@ export type PluginApiRouteDeclarationInput = z.infer<typeof pluginApiRouteDeclar
  * - duplicate `tools[].name` values are rejected
  * - duplicate `environmentDrivers[].driverKey` values are rejected
  * - duplicate `ui.slots[].id` values are rejected
- *
- * @see PLUGIN_SPEC.md §10.1 — Manifest shape
- * @see {@link PaperclipPluginManifestV1} — the inferred TypeScript type
+ * - `issue.custom-fields.write` capability required when `customFields` declared
+ * - duplicate `customFields[].key` values are rejected
  */
+
+export const pluginCustomFieldEnumValueSchema = z.object({
+  id: z.string().min(1).max(64),
+  label: z.string().min(1).max(128),
+});
+
+export const pluginCustomFieldDeclarationSchema = z.object({
+  key: z.string().min(1).max(64).regex(
+    /^[a-z][a-z0-9_-]*$/,
+    "Custom field key must start with a lowercase letter and contain only lowercase letters, digits, underscores, or hyphens",
+  ),
+  label: z.string().min(1).max(128),
+  type: z.enum(["text", "number", "url", "enum-ref"]),
+  scope: z.literal("issue"),
+  enumValues: z.array(pluginCustomFieldEnumValueSchema).min(1).optional(),
+}).superRefine((decl, ctx) => {
+  if (decl.type === "enum-ref" && (!decl.enumValues || decl.enumValues.length === 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "enumValues is required when type is 'enum-ref'",
+      path: ["enumValues"],
+    });
+  }
+  if (decl.type !== "enum-ref" && decl.enumValues) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "enumValues is only allowed when type is 'enum-ref'",
+      path: ["enumValues"],
+    });
+  }
+});
+
+export type PluginCustomFieldDeclarationInput = z.infer<typeof pluginCustomFieldDeclarationSchema>;
+
 export const pluginManifestV1Schema = z.object({
   id: z.string().min(1).regex(
     /^[a-z0-9][a-z0-9._-]*$/,
@@ -651,6 +694,7 @@ export const pluginManifestV1Schema = z.object({
     slots: z.array(pluginUiSlotDeclarationSchema).min(1).optional(),
     launchers: z.array(pluginLauncherDeclarationSchema).optional(),
   }).optional(),
+  customFields: z.array(pluginCustomFieldDeclarationSchema).optional(),
 }).superRefine((manifest, ctx) => {
   // ── Entrypoint ↔ UI slot consistency ──────────────────────────────────
   // Plugins that declare UI slots must also declare a UI entrypoint so the
@@ -808,6 +852,27 @@ export const pluginManifestV1Schema = z.object({
         code: z.ZodIssueCode.custom,
         message: `Duplicate database coreReadTables: ${[...new Set(duplicates)].join(", ")}`,
         path: ["database", "coreReadTables"],
+      });
+    }
+  }
+
+  // customFields declarations require write capability; read is optional (a plugin may write-only).
+  if (manifest.customFields && manifest.customFields.length > 0) {
+    if (!manifest.capabilities.includes("issue.custom-fields.write")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Capability 'issue.custom-fields.write' is required when customFields are declared",
+        path: ["capabilities"],
+      });
+    }
+    // custom field keys must be unique within the plugin
+    const fieldKeys = manifest.customFields.map((f) => f.key);
+    const duplicateFieldKeys = fieldKeys.filter((key, i) => fieldKeys.indexOf(key) !== i);
+    if (duplicateFieldKeys.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Duplicate custom field keys: ${[...new Set(duplicateFieldKeys)].join(", ")}`,
+        path: ["customFields"],
       });
     }
   }

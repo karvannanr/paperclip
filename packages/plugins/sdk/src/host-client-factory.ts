@@ -48,8 +48,8 @@
  * @see PLUGIN_SPEC.md §15 — Capability Model
  */
 
-import type { PluginCapability } from "@paperclipai/shared";
-import type { WorkerHostCallContext, WorkerToHostMethods, WorkerToHostMethodName } from "./protocol.js";
+import type { PluginCapability } from "@stapler/shared";
+import type { WorkerToHostMethods, WorkerToHostMethodName } from "./protocol.js";
 import { PLUGIN_RPC_ERROR_CODES } from "./protocol.js";
 
 // ---------------------------------------------------------------------------
@@ -98,9 +98,14 @@ export class InvocationScopeDeniedError extends Error {
  * All methods return promises to support async I/O (database, HTTP, etc.).
  */
 export interface HostServices {
-  /** Provides `config.get`. */
+  /** Provides `config.get` and `config.runtime.*`. */
   config: {
     get(): Promise<Record<string, unknown>>;
+    runtime: {
+      get(): Promise<WorkerToHostMethods["config.runtime.get"][1]>;
+      set(params: WorkerToHostMethods["config.runtime.set"][0]): Promise<WorkerToHostMethods["config.runtime.set"][1]>;
+      unset(params: WorkerToHostMethods["config.runtime.unset"][0]): Promise<WorkerToHostMethods["config.runtime.unset"][1]>;
+    };
   };
 
   /** Provides trusted company-scoped local folder helpers. */
@@ -145,9 +150,11 @@ export interface HostServices {
     fetch(params: WorkerToHostMethods["http.fetch"][0]): Promise<WorkerToHostMethods["http.fetch"][1]>;
   };
 
-  /** Provides `secrets.resolve`. */
+  /** Provides `secrets.resolve`, `secrets.write`, and `secrets.delete`. */
   secrets: {
     resolve(params: WorkerToHostMethods["secrets.resolve"][0]): Promise<string>;
+    write(params: WorkerToHostMethods["secrets.write"][0]): Promise<string>;
+    delete(params: WorkerToHostMethods["secrets.delete"][0]): Promise<undefined>;
   };
 
   /** Provides `activity.log`. */
@@ -241,6 +248,13 @@ export interface HostServices {
     get(params: WorkerToHostMethods["issues.documents.get"][0]): Promise<WorkerToHostMethods["issues.documents.get"][1]>;
     upsert(params: WorkerToHostMethods["issues.documents.upsert"][0]): Promise<WorkerToHostMethods["issues.documents.upsert"][1]>;
     delete(params: WorkerToHostMethods["issues.documents.delete"][0]): Promise<WorkerToHostMethods["issues.documents.delete"][1]>;
+  };
+
+  /** Provides `issues.customFields.set`, `issues.customFields.unset`, `issues.customFields.listForIssue`. */
+  issueCustomFields: {
+    set(params: WorkerToHostMethods["issues.customFields.set"][0]): Promise<void>;
+    unset(params: WorkerToHostMethods["issues.customFields.unset"][0]): Promise<void>;
+    listForIssue(params: WorkerToHostMethods["issues.customFields.listForIssue"][0]): Promise<WorkerToHostMethods["issues.customFields.listForIssue"][1]>;
   };
 
   /** Provides `agents.list`, `agents.get`, `agents.pause`, `agents.resume`, `agents.invoke`. */
@@ -355,14 +369,10 @@ const METHOD_CAPABILITY_MAP: Record<WorkerToHostMethodName, PluginCapability | n
   // Config — always allowed
   "config.get": null,
 
-  // Trusted local folders
-  "localFolders.declarations": null,
-  "localFolders.configure": "local.folders",
-  "localFolders.status": "local.folders",
-  "localFolders.list": "local.folders",
-  "localFolders.readText": "local.folders",
-  "localFolders.writeTextAtomic": "local.folders",
-  "localFolders.deleteFile": "local.folders",
+  // Runtime config — requires plugin.config.write
+  "config.runtime.get": "plugin.config.write",
+  "config.runtime.set": "plugin.config.write",
+  "config.runtime.unset": "plugin.config.write",
 
   // State
   "state.get": "plugin.state.read",
@@ -386,6 +396,8 @@ const METHOD_CAPABILITY_MAP: Record<WorkerToHostMethodName, PluginCapability | n
 
   // Secrets
   "secrets.resolve": "secrets.read-ref",
+  "secrets.write": "secrets.write",
+  "secrets.delete": "secrets.write",
 
   // Activity
   "activity.log": "activity.log.write",
@@ -445,6 +457,11 @@ const METHOD_CAPABILITY_MAP: Record<WorkerToHostMethodName, PluginCapability | n
   "issues.documents.get": "issue.documents.read",
   "issues.documents.upsert": "issue.documents.write",
   "issues.documents.delete": "issue.documents.write",
+
+  // Issue Custom Fields
+  "issues.customFields.set": "issue.custom-fields.write",
+  "issues.customFields.unset": "issue.custom-fields.write",
+  "issues.customFields.listForIssue": "issue.custom-fields.read",
 
   // Agents
   "agents.list": "agents.read",
@@ -630,6 +647,15 @@ export function createHostClientHandlers(
     "config.get": gated("config.get", async () => {
       return services.config.get();
     }),
+    "config.runtime.get": gated("config.runtime.get", async () => {
+      return services.config.runtime.get();
+    }),
+    "config.runtime.set": gated("config.runtime.set", async (params) => {
+      return services.config.runtime.set(params);
+    }),
+    "config.runtime.unset": gated("config.runtime.unset", async (params) => {
+      return services.config.runtime.unset(params);
+    }),
 
     "localFolders.declarations": gated("localFolders.declarations", async (params) => {
       return services.localFolders.declarations(params);
@@ -698,6 +724,12 @@ export function createHostClientHandlers(
     // Secrets
     "secrets.resolve": gated("secrets.resolve", async (params) => {
       return services.secrets.resolve(params);
+    }),
+    "secrets.write": gated("secrets.write", async (params) => {
+      return services.secrets.write(params);
+    }),
+    "secrets.delete": gated("secrets.delete", async (params) => {
+      return services.secrets.delete(params);
     }),
 
     // Activity
@@ -852,6 +884,17 @@ export function createHostClientHandlers(
     }),
     "issues.documents.delete": gated("issues.documents.delete", async (params) => {
       return services.issueDocuments.delete(params);
+    }),
+
+    // Issue Custom Fields
+    "issues.customFields.set": gated("issues.customFields.set", async (params) => {
+      return services.issueCustomFields.set(params);
+    }),
+    "issues.customFields.unset": gated("issues.customFields.unset", async (params) => {
+      return services.issueCustomFields.unset(params);
+    }),
+    "issues.customFields.listForIssue": gated("issues.customFields.listForIssue", async (params) => {
+      return services.issueCustomFields.listForIssue(params);
     }),
 
     // Agents

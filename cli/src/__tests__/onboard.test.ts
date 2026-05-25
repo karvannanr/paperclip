@@ -84,16 +84,9 @@ function createFreshConfigPath() {
 describe("onboard", () => {
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV };
-    delete process.env.PAPERCLIP_AGENT_JWT_SECRET;
-    delete process.env.PAPERCLIP_SECRETS_MASTER_KEY;
-    delete process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
-    delete process.env.PAPERCLIP_HOME;
-    delete process.env.PAPERCLIP_CONFIG;
-    delete process.env.PAPERCLIP_INSTANCE_ID;
-    delete process.env.PAPERCLIP_BIND;
-    delete process.env.PAPERCLIP_BIND_HOST;
-    delete process.env.PAPERCLIP_TAILNET_BIND_HOST;
-    delete process.env.HOST;
+    delete process.env.STAPLER_AGENT_JWT_SECRET;
+    delete process.env.STAPLER_SECRETS_MASTER_KEY;
+    delete process.env.STAPLER_SECRETS_MASTER_KEY_FILE;
   });
 
   afterEach(() => {
@@ -124,7 +117,7 @@ describe("onboard", () => {
   it("keeps --yes onboarding on local trusted loopback defaults", async () => {
     const configPath = createFreshConfigPath();
     process.env.HOST = "0.0.0.0";
-    process.env.PAPERCLIP_BIND = "lan";
+    process.env.STAPLER_BIND = "lan";
 
     await onboard({ config: configPath, yes: true, invokedByRun: true });
 
@@ -158,7 +151,7 @@ describe("onboard", () => {
 
   it("supports authenticated/private quickstart bind presets", async () => {
     const configPath = createFreshConfigPath();
-    process.env.PAPERCLIP_TAILNET_BIND_HOST = "100.64.0.8";
+    process.env.STAPLER_TAILNET_BIND_HOST = "100.64.0.8";
 
     await onboard({ config: configPath, yes: true, invokedByRun: true, bind: "tailnet" });
 
@@ -171,8 +164,7 @@ describe("onboard", () => {
 
   it("keeps tailnet quickstart on loopback until tailscale is available", async () => {
     const configPath = createFreshConfigPath();
-    delete process.env.PAPERCLIP_TAILNET_BIND_HOST;
-    process.env.PATH = "";
+    delete process.env.STAPLER_TAILNET_BIND_HOST;
 
     try {
       await onboard({ config: configPath, yes: true, invokedByRun: true, bind: "tailnet" });
@@ -189,7 +181,7 @@ describe("onboard", () => {
 
   it("ignores deployment env overrides during --yes quickstart", async () => {
     const configPath = createFreshConfigPath();
-    process.env.PAPERCLIP_DEPLOYMENT_MODE = "authenticated";
+    process.env.STAPLER_DEPLOYMENT_MODE = "authenticated";
 
     await onboard({ config: configPath, yes: true, invokedByRun: true });
 

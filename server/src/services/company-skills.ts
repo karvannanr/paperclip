@@ -3,10 +3,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { and, asc, eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { companies, companySkills } from "@paperclipai/db";
-import { readPaperclipSkillSyncPreference } from "@paperclipai/adapter-utils/server-utils";
-import type { PaperclipSkillEntry } from "@paperclipai/adapter-utils/server-utils";
+import type { Db } from "@stapler/db";
+import { companies, companySkills } from "@stapler/db";
+import { readPaperclipSkillSyncPreference } from "@stapler/adapter-utils/server-utils";
+import type { PaperclipSkillEntry } from "@stapler/adapter-utils/server-utils";
 import type {
   CompanySkill,
   CompanySkillCreateRequest,
@@ -25,8 +25,8 @@ import type {
   CompanySkillTrustLevel,
   CompanySkillUpdateStatus,
   CompanySkillUsageAgent,
-} from "@paperclipai/shared";
-import { normalizeAgentUrlKey } from "@paperclipai/shared";
+} from "@stapler/shared";
+import { normalizeAgentUrlKey } from "@stapler/shared";
 import { resolvePaperclipInstanceRoot } from "../home-paths.js";
 import { notFound, unprocessable } from "../errors.js";
 import { ghFetch, gitHubApiBase, resolveRawGitHubUrl } from "./github-fetch.js";
@@ -300,7 +300,7 @@ function uniqueImportedSkillKey(companyId: string, baseSlug: string, usedKeys: S
   return candidate;
 }
 
-function buildSkillRuntimeName(key: string, slug: string) {
+export function buildSkillRuntimeName(key: string, slug: string) {
   if (key.startsWith("paperclipai/paperclip/")) return slug;
   return `${slug}--${hashSkillValue(key)}`;
 }
@@ -321,7 +321,7 @@ function readCanonicalSkillKey(frontmatter: Record<string, unknown>, metadata: R
   );
 }
 
-function deriveCanonicalSkillKey(
+export function deriveCanonicalSkillKey(
   companyId: string,
   input: Pick<ImportedSkill, "slug" | "sourceType" | "sourceLocator" | "metadata">,
 ) {
@@ -516,8 +516,70 @@ function parseYamlBlock(
   return { value: record, nextIndex: index };
 }
 
+function normalizeYamlBlockScalars(raw: string) {
+  const lines = raw.split("\n");
+  const normalized: string[] = [];
+
+  for (let index = 0; index < lines.length;) {
+    const line = lines[index]!;
+    // Accept the same loose key shape as the existing frontmatter parser,
+    // including indented array-item keys such as "- kind: >".
+    const match = line.match(
+      /^(\s*[^:#][^:]*:\s*)([>|])([+-]?)(?:\s*(?:#.*)?)?$/,
+    );
+    if (!match) {
+      normalized.push(line);
+      index += 1;
+      continue;
+    }
+
+    const [, prefix, style, chomp] = match;
+    const parentIndent = prefix!.match(/^ */)?.[0].length ?? 0;
+    const blockLines: string[] = [];
+    index += 1;
+
+    while (index < lines.length) {
+      const blockLine = lines[index]!;
+      const trimmed = blockLine.trim();
+      const indent = blockLine.match(/^ */)?.[0].length ?? 0;
+      if (trimmed.length > 0 && indent <= parentIndent) break;
+      blockLines.push(blockLine);
+      index += 1;
+    }
+
+    normalized.push(
+      `${prefix}${JSON.stringify(parseYamlBlockScalar(blockLines, style!, chomp!))}`,
+    );
+  }
+
+  return normalized.join("\n");
+}
+
+function parseYamlBlockScalar(lines: string[], style: string, chomp: string) {
+  const nonEmptyIndents = lines
+    .filter((line) => line.trim().length > 0)
+    .map((line) => line.match(/^ */)?.[0].length ?? 0);
+  const baseIndent = nonEmptyIndents.length > 0 ? Math.min(...nonEmptyIndents) : 0;
+  const stripped = lines.map((line) => {
+    if (line.trim().length === 0) return "";
+    return line.slice(Math.min(baseIndent, line.length)).trimEnd();
+  });
+
+  const value = style === "|"
+    ? stripped.join("\n")
+    : stripped.reduce((acc, line) => {
+      if (line.length === 0) return acc.replace(/ +$/u, "") + "\n";
+      if (acc.length === 0 || acc.endsWith("\n")) return acc + line;
+      return `${acc} ${line}`;
+    }, "");
+
+  if (chomp === "-") return value.replace(/\n+$/u, "");
+  if (chomp === "+") return value;
+  return value.replace(/\n+$/u, "") + (value.length > 0 ? "\n" : "");
+}
+
 function parseYamlFrontmatter(raw: string): Record<string, unknown> {
-  const prepared = prepareYamlLines(raw);
+  const prepared = prepareYamlLines(normalizeYamlBlockScalars(raw));
   if (prepared.length === 0) return {};
   const parsed = parseYamlBlock(prepared, 0, prepared[0]!.indent);
   return isPlainRecord(parsed.value) ? parsed.value : {};
@@ -973,7 +1035,7 @@ export async function discoverProjectWorkspaceSkillDirectories(target: ProjectSk
     .sort((left, right) => left.skillDir.localeCompare(right.skillDir));
 }
 
-async function readLocalSkillImports(companyId: string, sourcePath: string): Promise<ImportedSkill[]> {
+export async function readLocalSkillImports(companyId: string, sourcePath: string): Promise<ImportedSkill[]> {
   const resolvedPath = path.resolve(sourcePath);
   const stat = await fs.stat(resolvedPath).catch(() => null);
   if (!stat) {
@@ -1046,7 +1108,7 @@ async function readLocalSkillImports(companyId: string, sourcePath: string): Pro
   return imports;
 }
 
-async function readUrlSkillImports(
+export async function readUrlSkillImports(
   companyId: string,
   sourceUrl: string,
   requestedSkillSlug: string | null = null,

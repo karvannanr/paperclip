@@ -24,15 +24,7 @@ import { useProjectOrder } from "../hooks/useProjectOrder";
 import { BudgetSidebarMarker } from "./BudgetSidebarMarker";
 import { SidebarSection, type SidebarSectionRadioChoice } from "./SidebarSection";
 import { PluginSlotMount, usePluginSlots } from "@/plugins/slots";
-import {
-  getProjectSortModeStorageKey,
-  PROJECT_SORT_MODE_UPDATED_EVENT,
-  readProjectSortMode,
-  type ProjectSortModeUpdatedDetail,
-  type ProjectSidebarSortMode,
-  writeProjectSortMode,
-} from "../lib/project-order";
-import type { Project } from "@paperclipai/shared";
+import type { Project } from "@stapler/shared";
 
 type ProjectSidebarSlot = ReturnType<typeof usePluginSlots>["slots"][number];
 

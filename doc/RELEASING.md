@@ -70,16 +70,16 @@ It:
 Users install canaries with:
 
 ```bash
-npx paperclipai@canary onboard
+npx @googlarz/stapler@canary onboard
 # or
-npx paperclipai@canary onboard --data-dir "$(mktemp -d /tmp/paperclip-canary.XXXXXX)"
+npx @googlarz/stapler@canary onboard --data-dir "$(mktemp -d /tmp/paperclip-canary.XXXXXX)"
 ```
 
 ### Stable
 
 Use [`.github/workflows/release.yml`](../.github/workflows/release.yml) from the Actions tab with the manual `workflow_dispatch` inputs.
 
-[Run the action here](https://github.com/paperclipai/paperclip/actions/workflows/release.yml)
+[Run the action here](https://github.com/googlarz/stapler/actions/workflows/release.yml)
 
 Inputs:
 
@@ -187,7 +187,7 @@ gh workflow run release-smoke.yml -f paperclip_version=latest
 
 Minimum checks:
 
-- `npx paperclipai@canary onboard` installs
+- `npx @googlarz/stapler@canary onboard` installs
 - onboarding completes without crashes
 - authenticated login works with the smoke credentials
 - the browser lands in onboarding on a fresh instance

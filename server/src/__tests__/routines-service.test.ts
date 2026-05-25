@@ -20,8 +20,7 @@ import {
   routineRuns,
   routines,
   routineTriggers,
-  secretAccessEvents,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,

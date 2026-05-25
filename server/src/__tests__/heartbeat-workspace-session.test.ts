@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { agents } from "@paperclipai/db";
-import { sessionCodec as codexSessionCodec } from "@paperclipai/adapter-codex-local/server";
+import type { agents } from "@stapler/db";
+import { sessionCodec as codexSessionCodec } from "@stapler/adapter-codex-local/server";
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 import {
   applyPersistedExecutionWorkspaceConfig,
@@ -16,6 +16,7 @@ import {
   resolveRuntimeSessionParamsForWorkspace,
   stripWorkspaceRuntimeFromExecutionRunConfig,
   shouldResetTaskSessionForWake,
+  shouldUseAgentRuntimeSessionForTaskScope,
   type ResolvedWorkspaceForRun,
 } from "../services/heartbeat.ts";
 
@@ -299,8 +300,8 @@ describe("shouldResetTaskSessionForWake", () => {
     expect(shouldResetTaskSessionForWake({ wakeReason: "execution_changes_requested" })).toBe(true);
   });
 
-  it("preserves session context on timer heartbeats", () => {
-    expect(shouldResetTaskSessionForWake({ wakeSource: "timer" })).toBe(false);
+  it("resets session context on timer heartbeats", () => {
+    expect(shouldResetTaskSessionForWake({ wakeSource: "timer" })).toBe(true);
   });
 
   it("preserves session context on manual on-demand invokes by default", () => {
@@ -424,6 +425,35 @@ describe("comment wake batching", () => {
   });
 });
 
+describe("shouldUseAgentRuntimeSessionForTaskScope", () => {
+  it("does not reuse agent runtime sessions when a task key is present", () => {
+    expect(
+      shouldUseAgentRuntimeSessionForTaskScope({
+        taskKey: "issue-123",
+        resetTaskSession: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not reuse agent runtime sessions when a fresh task session is required", () => {
+    expect(
+      shouldUseAgentRuntimeSessionForTaskScope({
+        taskKey: null,
+        resetTaskSession: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("reuses agent runtime sessions for unscoped heartbeats", () => {
+    expect(
+      shouldUseAgentRuntimeSessionForTaskScope({
+        taskKey: null,
+        resetTaskSession: false,
+      }),
+    ).toBe(true);
+  });
+});
+
 describe("buildExplicitResumeSessionOverride", () => {
   it("reuses saved task session params when they belong to the selected failed run", () => {
     const result = buildExplicitResumeSessionOverride({
@@ -479,7 +509,7 @@ describe("formatRuntimeWorkspaceWarningLog", () => {
   it("emits informational workspace warnings on stdout", () => {
     expect(formatRuntimeWorkspaceWarningLog("Using fallback workspace")).toEqual({
       stream: "stdout",
-      chunk: "[paperclip] Using fallback workspace\n",
+      chunk: "[stapler] Using fallback workspace\n",
     });
   });
 });

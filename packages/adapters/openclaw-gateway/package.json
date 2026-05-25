@@ -1,14 +1,14 @@
 {
-  "name": "@paperclipai/adapter-openclaw-gateway",
+  "name": "@stapler/adapter-openclaw-gateway",
   "version": "0.3.1",
   "license": "MIT",
-  "homepage": "https://github.com/paperclipai/paperclip",
+  "homepage": "https://github.com/googlarz/stapler",
   "bugs": {
-    "url": "https://github.com/paperclipai/paperclip/issues"
+    "url": "https://github.com/googlarz/stapler/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/paperclipai/paperclip",
+    "url": "https://github.com/googlarz/stapler",
     "directory": "packages/adapters/openclaw-gateway"
   },
   "type": "module",
@@ -50,7 +50,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@paperclipai/adapter-utils": "workspace:*",
+    "@stapler/adapter-utils": "workspace:*",
     "picocolors": "^1.1.1",
     "ws": "^8.19.0"
   },
@@ -58,5 +58,6 @@
     "@types/node": "^24.6.0",
     "@types/ws": "^8.18.1",
     "typescript": "^5.7.3"
-  }
+  },
+  "private": true
 }

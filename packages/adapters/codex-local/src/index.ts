@@ -1,4 +1,4 @@
-import type { AdapterModelProfileDefinition } from "@paperclipai/adapter-utils";
+import type { AdapterModelProfileDefinition } from "@stapler/adapter-utils";
 
 export const type = "codex_local";
 export const label = "Codex (local)";
@@ -7,7 +7,7 @@ export const SANDBOX_INSTALL_COMMAND = "npm install -g @openai/codex";
 
 export const DEFAULT_CODEX_LOCAL_MODEL = "gpt-5.3-codex";
 export const DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX = true;
-export const CODEX_LOCAL_FAST_MODE_SUPPORTED_MODELS = ["gpt-5.4"] as const;
+export const CODEX_LOCAL_FAST_MODE_SUPPORTED_MODELS = ["gpt-5.4", "gpt-5.5"] as const;
 
 function normalizeModelId(model: string | null | undefined): string {
   return typeof model === "string" ? model.trim() : "";
@@ -33,6 +33,7 @@ export function isCodexLocalFastModeSupported(model: string | null | undefined):
 }
 
 export const models = [
+  { id: "gpt-5.5", label: "gpt-5.5" },
   { id: "gpt-5.4", label: "gpt-5.4" },
   { id: DEFAULT_CODEX_LOCAL_MODEL, label: DEFAULT_CODEX_LOCAL_MODEL },
   { id: "gpt-5.3-codex-spark", label: "gpt-5.3-codex-spark" },
@@ -79,8 +80,9 @@ Core fields:
 - workspaceRuntime (object, optional): reserved for workspace runtime metadata; workspace runtime services are manually controlled from the workspace UI and are not auto-started by heartbeats
 
 Operational fields:
-- timeoutSec (number, optional): run timeout in seconds
-- graceSec (number, optional): SIGTERM grace period in seconds
+- timeoutSec (number, optional): wall-clock run timeout in seconds. Defaults to 1800 (30min). Set to 0 to disable.
+- idleTimeoutSec (number, optional): idle watchdog in seconds. Terminate the run if no stdout/stderr arrives within this window. Defaults to 300 (5min). Set to 0 to disable. Independent of timeoutSec; whichever fires first wins. On expiry the result carries errorCode=codex_idle_timeout (or codex_wall_timeout for wall-clock) and errorMeta.timeoutReason="idle"|"wall".
+- graceSec (number, optional): SIGTERM grace period in seconds before SIGKILL escalation
 
 Notes:
 - Prompts are piped via stdin (Codex receives "-" prompt argument).
@@ -90,5 +92,5 @@ Notes:
 - Unless explicitly overridden in adapter config, Paperclip runs Codex with a per-company managed CODEX_HOME under the active Paperclip instance and seeds auth/config from the shared Codex home (the CODEX_HOME env var, when set, or ~/.codex).
 - Some model/tool combinations reject certain effort levels (for example minimal with web search enabled).
 - Fast mode is supported on GPT-5.4 and manual model IDs. When enabled for those models, Paperclip applies \`service_tier="fast"\` and \`features.fast_mode=true\`.
-- When Paperclip realizes a workspace/runtime for a run, it injects PAPERCLIP_WORKSPACE_* and PAPERCLIP_RUNTIME_* env vars for agent-side tooling.
+- When Paperclip realizes a workspace/runtime for a run, it injects STAPLER_WORKSPACE_* and STAPLER_RUNTIME_* env vars for agent-side tooling.
 `;

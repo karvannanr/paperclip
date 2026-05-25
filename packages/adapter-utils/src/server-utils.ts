@@ -15,6 +15,12 @@ export interface RunProcessResult {
   exitCode: number | null;
   signal: string | null;
   timedOut: boolean;
+  /**
+   * Reason for `timedOut`: `"wall"` for `timeoutSec` cap, `"idle"` for
+   * `idleTimeoutSec` watchdog. Absent for non-timeout exits or callers
+   * that don't track this distinction.
+   */
+  timeoutReason?: "wall" | "idle" | null;
   stdout: string;
   stderr: string;
   pid: number | null;
@@ -83,7 +89,7 @@ const DEFAULT_PAPERCLIP_INSTANCE_ID = "default";
 const PATH_SEGMENT_RE = /^[a-zA-Z0-9_-]+$/;
 const SENSITIVE_ENV_KEY = /(key|token|secret|password|passwd|authorization|cookie)/i;
 const REDACTED_LOG_VALUE = "***REDACTED***";
-const PAPERCLIP_SKILL_ROOT_RELATIVE_CANDIDATES = [
+const STAPLER_SKILL_ROOT_RELATIVE_CANDIDATES = [
   "../../skills",
   "../../../../../skills",
 ];
@@ -91,26 +97,7 @@ const MATERIALIZED_SKILL_SENTINEL = ".paperclip-materialized-skill.json";
 const MATERIALIZED_SKILL_LOCK_OWNER = "owner.json";
 const MATERIALIZED_SKILL_LOCK_STALE_MS = 30_000;
 
-function expandHomePrefix(value: string): string {
-  if (value === "~") return os.homedir();
-  if (value.startsWith("~/")) return path.resolve(os.homedir(), value.slice(2));
-  return value;
-}
-
-export function resolvePaperclipInstanceRootForAdapter(input: {
-  homeDir?: string;
-  instanceId?: string;
-  env?: NodeJS.ProcessEnv;
-} = {}): string {
-  const env = input.env ?? process.env;
-  const homeRaw = input.homeDir?.trim() || env.PAPERCLIP_HOME?.trim();
-  const homeDir = path.resolve(homeRaw ? expandHomePrefix(homeRaw) : path.resolve(os.homedir(), ".paperclip"));
-  const instanceId = input.instanceId?.trim() || env.PAPERCLIP_INSTANCE_ID?.trim() || DEFAULT_PAPERCLIP_INSTANCE_ID;
-  if (!PATH_SEGMENT_RE.test(instanceId)) throw new Error(`Invalid PAPERCLIP_INSTANCE_ID '${instanceId}'.`);
-  return path.resolve(homeDir, "instances", instanceId);
-}
-
-export const DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE = [
+export const DEFAULT_STAPLER_AGENT_PROMPT_TEMPLATE = [
   "You are agent {{agent.id}} ({{agent.name}}). Continue your Paperclip work.",
   "",
   "Execution contract:",
@@ -884,7 +871,7 @@ export function buildInvocationEnvForLogs(
 
   const resolvedCommand = options.resolvedCommand?.trim();
   if (resolvedCommand) {
-    merged[options.resolvedCommandEnvKey ?? "PAPERCLIP_RESOLVED_COMMAND"] = redactCommandTextForLogs(resolvedCommand);
+    merged[options.resolvedCommandEnvKey ?? "STAPLER_RESOLVED_COMMAND"] = redactCommandTextForLogs(resolvedCommand);
   }
 
   return redactEnvForLogs(merged);
@@ -898,18 +885,18 @@ export function buildPaperclipEnv(agent: { id: string; companyId: string }): Rec
     return host;
   };
   const vars: Record<string, string> = {
-    PAPERCLIP_AGENT_ID: agent.id,
-    PAPERCLIP_COMPANY_ID: agent.companyId,
+    STAPLER_AGENT_ID: agent.id,
+    STAPLER_COMPANY_ID: agent.companyId,
   };
   const runtimeHost = resolveHostForUrl(
-    process.env.PAPERCLIP_LISTEN_HOST ?? process.env.HOST ?? "localhost",
+    process.env.STAPLER_LISTEN_HOST ?? process.env.HOST ?? "localhost",
   );
-  const runtimePort = process.env.PAPERCLIP_LISTEN_PORT ?? process.env.PORT ?? "3100";
+  const runtimePort = process.env.STAPLER_LISTEN_PORT ?? process.env.PORT ?? "3100";
   const apiUrl =
-    process.env.PAPERCLIP_RUNTIME_API_URL ??
-    process.env.PAPERCLIP_API_URL ??
+    process.env.STAPLER_RUNTIME_API_URL ??
+    process.env.STAPLER_API_URL ??
     `http://${runtimeHost}:${runtimePort}`;
-  vars.PAPERCLIP_API_URL = apiUrl;
+  vars.STAPLER_API_URL = apiUrl;
   return vars;
 }
 
@@ -928,14 +915,14 @@ export function applyPaperclipWorkspaceEnv(
   },
 ): Record<string, string> {
   const mappings = [
-    ["PAPERCLIP_WORKSPACE_CWD", input.workspaceCwd],
-    ["PAPERCLIP_WORKSPACE_SOURCE", input.workspaceSource],
-    ["PAPERCLIP_WORKSPACE_STRATEGY", input.workspaceStrategy],
-    ["PAPERCLIP_WORKSPACE_ID", input.workspaceId],
-    ["PAPERCLIP_WORKSPACE_REPO_URL", input.workspaceRepoUrl],
-    ["PAPERCLIP_WORKSPACE_REPO_REF", input.workspaceRepoRef],
-    ["PAPERCLIP_WORKSPACE_BRANCH", input.workspaceBranch],
-    ["PAPERCLIP_WORKSPACE_WORKTREE_PATH", input.workspaceWorktreePath],
+    ["STAPLER_WORKSPACE_CWD", input.workspaceCwd],
+    ["STAPLER_WORKSPACE_SOURCE", input.workspaceSource],
+    ["STAPLER_WORKSPACE_STRATEGY", input.workspaceStrategy],
+    ["STAPLER_WORKSPACE_ID", input.workspaceId],
+    ["STAPLER_WORKSPACE_REPO_URL", input.workspaceRepoUrl],
+    ["STAPLER_WORKSPACE_REPO_REF", input.workspaceRepoRef],
+    ["STAPLER_WORKSPACE_BRANCH", input.workspaceBranch],
+    ["STAPLER_WORKSPACE_WORKTREE_PATH", input.workspaceWorktreePath],
     ["AGENT_HOME", input.agentHome],
   ] as const;
 
@@ -1122,10 +1109,10 @@ export function refreshPaperclipWorkspaceEnvForExecution(input: {
 export function sanitizeInheritedPaperclipEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...baseEnv };
   for (const key of Object.keys(env)) {
-    if (!key.startsWith("PAPERCLIP_")) continue;
-    if (key === "PAPERCLIP_RUNTIME_API_URL") continue;
-    if (key === "PAPERCLIP_LISTEN_HOST") continue;
-    if (key === "PAPERCLIP_LISTEN_PORT") continue;
+    if (!key.startsWith("STAPLER_")) continue;
+    if (key === "STAPLER_RUNTIME_API_URL") continue;
+    if (key === "STAPLER_LISTEN_HOST") continue;
+    if (key === "STAPLER_LISTEN_PORT") continue;
     delete env[key];
   }
   return env;
@@ -1313,7 +1300,7 @@ export async function resolvePaperclipSkillsDir(
   additionalCandidates: string[] = [],
 ): Promise<string | null> {
   const candidates = [
-    ...PAPERCLIP_SKILL_ROOT_RELATIVE_CANDIDATES.map((relativePath) => path.resolve(moduleDir, relativePath)),
+    ...STAPLER_SKILL_ROOT_RELATIVE_CANDIDATES.map((relativePath) => path.resolve(moduleDir, relativePath)),
     ...additionalCandidates.map((candidate) => path.resolve(candidate)),
   ];
   const seenRoots = new Set<string>();
@@ -1356,7 +1343,7 @@ export async function listPaperclipSkillEntries(
       const skillDir = path.join(root, entry.name);
       const required = await readSkillRequired(skillDir);
       return {
-        key: `paperclipai/paperclip/${entry.name}`,
+        key: `stapler/stapler/${entry.name}`,
         runtimeName: entry.name,
         source: skillDir,
         required,
@@ -1483,8 +1470,8 @@ export function buildPersistentSkillSnapshot(
   };
 }
 
-function normalizeConfiguredPaperclipRuntimeSkills(value: unknown): PaperclipSkillEntry[] {
-  if (!Array.isArray(value)) return [];
+function normalizeConfiguredPaperclipRuntimeSkills(value: unknown): PaperclipSkillEntry[] | null {
+  if (!Array.isArray(value)) return null;
   const out: PaperclipSkillEntry[] = [];
   for (const rawEntry of value) {
     const entry = parseObject(rawEntry);
@@ -1512,7 +1499,7 @@ export async function readPaperclipRuntimeSkillEntries(
   additionalCandidates: string[] = [],
 ): Promise<PaperclipSkillEntry[]> {
   const configuredEntries = normalizeConfiguredPaperclipRuntimeSkills(config.paperclipRuntimeSkills);
-  if (configuredEntries.length > 0) return configuredEntries;
+  if (configuredEntries !== null) return configuredEntries;
   return listPaperclipSkillEntries(moduleDir, additionalCandidates);
 }
 
@@ -1904,6 +1891,12 @@ export async function runChildProcess(
     env: Record<string, string>;
     timeoutSec: number;
     graceSec: number;
+    /**
+     * Idle watchdog: terminate child if no stdout/stderr chunk arrives
+     * within this many seconds. 0 disables (default). Independent of
+     * `timeoutSec` (wall-clock cap).
+     */
+    idleTimeoutSec?: number;
     onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>;
     onLogError?: (err: unknown, runId: string, message: string) => void;
     onSpawn?: (meta: { pid: number; processGroupId: number | null; startedAt: string }) => Promise<void>;
@@ -1922,7 +1915,7 @@ export async function runChildProcess(
     // Strip Claude Code nesting-guard env vars so spawned `claude` processes
     // don't refuse to start with "cannot be launched inside another session".
     // These vars leak in when the Paperclip server itself is started from
-    // within a Claude Code session (e.g. `npx paperclipai run` in a terminal
+    // within a Claude Code session (e.g. `npx @googlarz/stapler run` in a terminal
     // owned by Claude Code) or when cron inherits a contaminated shell env.
     const CLAUDE_CODE_NESTING_VARS = [
       "CLAUDECODE",
@@ -1960,6 +1953,8 @@ export async function runChildProcess(
         runningProcesses.set(runId, { child, graceSec: opts.graceSec, processGroupId });
 
         let timedOut = false;
+        let timeoutReason: "wall" | "idle" | null = null;
+        let killEscalationTimer: NodeJS.Timeout | null = null;
         let stdout = "";
         let stderr = "";
         let logChain: Promise<void> = Promise.resolve();
@@ -2012,17 +2007,39 @@ export async function runChildProcess(
           }, graceMs);
         };
 
+        const idleTimeoutSec = Math.max(0, opts.idleTimeoutSec ?? 0);
+        let idleTimer: NodeJS.Timeout | null = null;
+
+        const triggerTimeout = (reason: "wall" | "idle") => {
+          if (timedOut) return;
+          timedOut = true;
+          timeoutReason = reason;
+          clearTerminalCleanupTimers();
+          if (idleTimer) {
+            clearTimeout(idleTimer);
+            idleTimer = null;
+          }
+          signalRunningProcess({ child, processGroupId }, "SIGTERM");
+          killEscalationTimer = setTimeout(() => {
+            killEscalationTimer = null;
+            signalRunningProcess({ child, processGroupId }, "SIGKILL");
+          }, Math.max(1, opts.graceSec) * 1000);
+        };
+
+        const armIdleTimer = () => {
+          if (idleTimeoutSec <= 0 || timedOut) return;
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            idleTimer = null;
+            triggerTimeout("idle");
+          }, idleTimeoutSec * 1000);
+        };
+
         const timeout =
           opts.timeoutSec > 0
-            ? setTimeout(() => {
-                timedOut = true;
-                clearTerminalCleanupTimers();
-                signalRunningProcess({ child, processGroupId }, "SIGTERM");
-                setTimeout(() => {
-                  signalRunningProcess({ child, processGroupId }, "SIGKILL");
-                }, Math.max(1, opts.graceSec) * 1000);
-              }, opts.timeoutSec * 1000)
+            ? setTimeout(() => triggerTimeout("wall"), opts.timeoutSec * 1000)
             : null;
+        armIdleTimer();
 
         child.stdout?.on("data", (chunk: unknown) => {
           const readable = child.stdout;
@@ -2030,6 +2047,7 @@ export async function runChildProcess(
           readable.pause();
           const text = String(chunk);
           stdout = appendWithCap(stdout, text);
+          armIdleTimer();
           maybeArmTerminalResultCleanup();
           logChain = logChain
             .then(() => opts.onLog("stdout", text))
@@ -2046,6 +2064,7 @@ export async function runChildProcess(
           readable.pause();
           const text = String(chunk);
           stderr = appendWithCap(stderr, text);
+          armIdleTimer();
           maybeArmTerminalResultCleanup();
           logChain = logChain
             .then(() => opts.onLog("stderr", text))
@@ -2067,6 +2086,8 @@ export async function runChildProcess(
 
         child.on("error", (err: Error) => {
           if (timeout) clearTimeout(timeout);
+          if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+          if (killEscalationTimer) { clearTimeout(killEscalationTimer); killEscalationTimer = null; }
           clearTerminalCleanupTimers();
           runningProcesses.delete(runId);
           void target.cleanup?.();
@@ -2085,6 +2106,8 @@ export async function runChildProcess(
 
         child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
           if (timeout) clearTimeout(timeout);
+          if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+          if (killEscalationTimer) { clearTimeout(killEscalationTimer); killEscalationTimer = null; }
           clearTerminalCleanupTimers();
           runningProcesses.delete(runId);
           void logChain.finally(() => {
@@ -2095,6 +2118,7 @@ export async function runChildProcess(
                 exitCode: code,
                 signal,
                 timedOut,
+                timeoutReason,
                 stdout,
                 stderr,
                 pid: child.pid ?? null,

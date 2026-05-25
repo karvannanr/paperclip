@@ -2,7 +2,7 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IssueRow } from "./IssueRow";
 
@@ -56,6 +56,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     executionRunId: null,
     executionAgentNameKey: null,
     executionLockedAt: null,
+    scheduledFor: null,
     startedAt: null,
     completedAt: null,
     cancelledAt: null,

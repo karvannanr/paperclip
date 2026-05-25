@@ -2,12 +2,12 @@ import type {
   AdapterEnvironmentCheck,
   AdapterEnvironmentTestContext,
   AdapterEnvironmentTestResult,
-} from "@paperclipai/adapter-utils";
+} from "@stapler/adapter-utils";
 import {
   asString,
   parseObject,
   ensurePathInEnv,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@stapler/adapter-utils/server-utils";
 import {
   ensureAdapterExecutionTargetCommandResolvable,
   ensureAdapterExecutionTargetDirectory,
@@ -15,9 +15,7 @@ import {
   runAdapterExecutionTargetProcess,
   describeAdapterExecutionTarget,
   resolveAdapterExecutionTargetCwd,
-  prepareAdapterExecutionTargetRuntime,
-} from "@paperclipai/adapter-utils/execution-target";
-import fs from "node:fs/promises";
+} from "@stapler/adapter-utils/execution-target";
 import path from "node:path";
 import os from "node:os";
 import { parseCodexJsonl } from "./parse.js";

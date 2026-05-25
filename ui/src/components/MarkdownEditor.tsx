@@ -31,13 +31,8 @@ import {
   thematicBreakPlugin,
   type RealmPlugin,
 } from "@mdxeditor/editor";
-import {
-  buildAgentMentionHref,
-  buildProjectMentionHref,
-  buildRoutineMentionHref,
-  buildUserMentionHref,
-} from "@paperclipai/shared";
-import { Boxes, CalendarClock, User } from "lucide-react";
+import { buildAgentMentionHref, buildProjectMentionHref, buildUserMentionHref } from "@stapler/shared";
+import { Boxes, User } from "lucide-react";
 import { AgentIcon } from "./AgentIconPicker";
 import { applyMentionChipDecoration, clearMentionChipDecoration, parseMentionChipHref } from "../lib/mention-chips";
 import { MentionAwareLinkNode, mentionAwareLinkNodeReplacement } from "../lib/mention-aware-link-node";

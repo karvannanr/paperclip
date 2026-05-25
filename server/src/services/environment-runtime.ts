@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { environmentLeases } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
+import { environmentLeases } from "@stapler/db";
 import type {
   Environment,
   EnvironmentLease,
@@ -9,13 +9,13 @@ import type {
   ExecutionWorkspace,
   PluginEnvironmentConfig,
   SandboxEnvironmentConfig,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import type {
   PluginEnvironmentExecuteResult,
   PluginEnvironmentLease,
   PluginEnvironmentRealizeWorkspaceResult,
-} from "@paperclipai/plugin-sdk";
-import { ensureSshWorkspaceReady } from "@paperclipai/adapter-utils/ssh";
+} from "@stapler/plugin-sdk";
+import { ensureSshWorkspaceReady, findReachablePaperclipApiUrlOverSsh } from "@stapler/adapter-utils/ssh";
 import { environmentService } from "./environments.js";
 import {
   parseEnvironmentDriverConfig,
@@ -255,6 +255,27 @@ function createSshEnvironmentDriver(db: Db): EnvironmentRuntimeDriver {
       }
 
       const { remoteCwd } = await ensureSshWorkspaceReady(parsed.config);
+      const candidateUrls = (() => {
+        const raw = process.env.STAPLER_RUNTIME_API_CANDIDATES_JSON;
+        if (!raw) return [];
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed)
+            ? parsed.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+            : [];
+        } catch {
+          return [];
+        }
+      })();
+      const paperclipApiUrl = await findReachablePaperclipApiUrlOverSsh({
+        config: parsed.config,
+        candidates: candidateUrls,
+      });
+      if (!paperclipApiUrl) {
+        throw new Error(
+          `SSH environment ${parsed.config.username}@${parsed.config.host} could not reach any Paperclip API candidates.`,
+        );
+      }
       return await environmentsSvc.acquireLease({
         companyId: input.companyId,
         environmentId: input.environment.id,
@@ -1136,6 +1157,64 @@ export function environmentRuntimeService(
         lease,
         leaseContext,
       };
+    },
+
+    async releaseIssueLeases(
+      issueId: string,
+      status: Extract<EnvironmentLeaseStatus, "released" | "expired" | "failed"> = "released",
+    ): Promise<EnvironmentRuntimeLeaseRecord[]> {
+      const leaseRows = await db
+        .select()
+        .from(environmentLeases)
+        .where(
+          and(
+            eq(environmentLeases.issueId, issueId),
+            inArray(environmentLeases.status, ["active", "retained"]),
+          ),
+        );
+      if (leaseRows.length === 0) return [];
+
+      const released: EnvironmentRuntimeLeaseRecord[] = [];
+      for (const leaseRow of leaseRows) {
+        const environment = await environmentsSvc.getById(leaseRow.environmentId);
+        if (!environment) continue;
+        const leaseSnapshot: EnvironmentLease = {
+          id: leaseRow.id,
+          companyId: leaseRow.companyId,
+          environmentId: leaseRow.environmentId,
+          executionWorkspaceId: leaseRow.executionWorkspaceId ?? null,
+          issueId: leaseRow.issueId ?? null,
+          heartbeatRunId: leaseRow.heartbeatRunId ?? null,
+          status: leaseRow.status as EnvironmentLease["status"],
+          leasePolicy: leaseRow.leasePolicy as EnvironmentLease["leasePolicy"],
+          provider: leaseRow.provider ?? null,
+          providerLeaseId: leaseRow.providerLeaseId ?? null,
+          acquiredAt: leaseRow.acquiredAt,
+          lastUsedAt: leaseRow.lastUsedAt,
+          expiresAt: leaseRow.expiresAt ?? null,
+          releasedAt: leaseRow.releasedAt ?? null,
+          failureReason: leaseRow.failureReason ?? null,
+          cleanupStatus: leaseRow.cleanupStatus as EnvironmentLease["cleanupStatus"],
+          metadata: (leaseRow.metadata as Record<string, unknown> | null) ?? null,
+          createdAt: leaseRow.createdAt,
+          updatedAt: leaseRow.updatedAt,
+        };
+        const driver = getDriver(getLeaseDriverKey(leaseSnapshot, environment));
+        const lease = driver
+          ? await driver.releaseRunLease({ environment, lease: leaseSnapshot, status })
+          : await environmentsSvc.releaseLease(leaseRow.id, status);
+        if (!lease) continue;
+        released.push({
+          environment,
+          lease,
+          leaseContext: {
+            executionWorkspaceId: lease.executionWorkspaceId,
+            executionWorkspaceMode:
+              (lease.metadata?.executionWorkspaceMode as ExecutionWorkspace["mode"] | null | undefined) ?? null,
+          },
+        });
+      }
+      return released;
     },
 
     async releaseRunLeases(

@@ -1,5 +1,4 @@
-import type { SecretProvider, SecretProviderDescriptor } from "@paperclipai/shared";
-import { awsSecretsManagerProvider } from "./aws-secrets-manager-provider.js";
+import type { SecretProvider, SecretProviderDescriptor } from "@stapler/shared";
 import { localEncryptedProvider } from "./local-encrypted-provider.js";
 import {
   gcpSecretManagerProvider,

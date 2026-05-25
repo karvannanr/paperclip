@@ -3,7 +3,7 @@ import type {
   HeartbeatRunEvent,
   InstanceSchedulerHeartbeatAgent,
   WorkspaceOperation,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { api } from "./client";
 
 export interface RunLivenessFields {
@@ -94,6 +94,8 @@ export const heartbeatsApi = {
       `/workspace-operations/${operationId}/log?offset=${encodeURIComponent(String(offset))}&limitBytes=${encodeURIComponent(String(limitBytes))}`,
     ),
   cancel: (runId: string) => api.post<void>(`/heartbeat-runs/${runId}/cancel`, {}),
+  approve: (runId: string) => api.post<HeartbeatRun>(`/heartbeat-runs/${runId}/approve`, {}),
+  reject: (runId: string) => api.post<HeartbeatRun>(`/heartbeat-runs/${runId}/reject`, {}),
   recordWatchdogDecision: (input: WatchdogDecisionInput) =>
     api.post(`/heartbeat-runs/${input.runId}/watchdog-decisions`, {
       decision: input.decision,

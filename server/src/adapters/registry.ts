@@ -1,13 +1,5 @@
-import type {
-  AdapterModel,
-  AdapterModelProfileDefinition,
-  AdapterRuntimeCommandSpec,
-  ServerAdapterModule,
-} from "./types.js";
-import {
-  buildSandboxNpmInstallCommand,
-  getAdapterSessionManagement,
-} from "@paperclipai/adapter-utils";
+import type { AdapterModelProfileDefinition, ServerAdapterModule } from "./types.js";
+import { getAdapterSessionManagement } from "@stapler/adapter-utils";
 import {
   execute as acpxExecute,
   testEnvironment as acpxTestEnvironment,
@@ -15,11 +7,8 @@ import {
   getConfigSchema as getAcpxConfigSchema,
   listAcpxSkills,
   syncAcpxSkills,
-} from "@paperclipai/adapter-acpx-local/server";
-import {
-  agentConfigurationDoc as acpxAgentConfigurationDoc,
-  models as acpxModels,
-} from "@paperclipai/adapter-acpx-local";
+} from "@stapler/adapter-acpx-local/server";
+import { agentConfigurationDoc as acpxAgentConfigurationDoc } from "@stapler/adapter-acpx-local";
 import {
   execute as claudeExecute,
   listClaudeSkills,
@@ -28,12 +17,12 @@ import {
   testEnvironment as claudeTestEnvironment,
   sessionCodec as claudeSessionCodec,
   getQuotaWindows as claudeGetQuotaWindows,
-} from "@paperclipai/adapter-claude-local/server";
+} from "@stapler/adapter-claude-local/server";
 import {
   agentConfigurationDoc as claudeAgentConfigurationDoc,
   models as claudeModels,
   modelProfiles as claudeModelProfiles,
-} from "@paperclipai/adapter-claude-local";
+} from "@stapler/adapter-claude-local";
 import {
   execute as codexExecute,
   listCodexSkills,
@@ -41,24 +30,24 @@ import {
   testEnvironment as codexTestEnvironment,
   sessionCodec as codexSessionCodec,
   getQuotaWindows as codexGetQuotaWindows,
-} from "@paperclipai/adapter-codex-local/server";
+} from "@stapler/adapter-codex-local/server";
 import {
   agentConfigurationDoc as codexAgentConfigurationDoc,
   models as codexModels,
   modelProfiles as codexModelProfiles,
-} from "@paperclipai/adapter-codex-local";
+} from "@stapler/adapter-codex-local";
 import {
   execute as cursorExecute,
   listCursorSkills,
   syncCursorSkills,
   testEnvironment as cursorTestEnvironment,
   sessionCodec as cursorSessionCodec,
-} from "@paperclipai/adapter-cursor-local/server";
+} from "@stapler/adapter-cursor-local/server";
 import {
   agentConfigurationDoc as cursorAgentConfigurationDoc,
   models as cursorModels,
   modelProfiles as cursorModelProfiles,
-} from "@paperclipai/adapter-cursor-local";
+} from "@stapler/adapter-cursor-local";
 import {
   execute as cursorCloudExecute,
   getConfigSchema as getCursorCloudConfigSchema,
@@ -72,12 +61,12 @@ import {
   syncGeminiSkills,
   testEnvironment as geminiTestEnvironment,
   sessionCodec as geminiSessionCodec,
-} from "@paperclipai/adapter-gemini-local/server";
+} from "@stapler/adapter-gemini-local/server";
 import {
   agentConfigurationDoc as geminiAgentConfigurationDoc,
   models as geminiModels,
   modelProfiles as geminiModelProfiles,
-} from "@paperclipai/adapter-gemini-local";
+} from "@stapler/adapter-gemini-local";
 import {
   execute as grokExecute,
   listGrokSkills,
@@ -96,20 +85,20 @@ import {
   testEnvironment as openCodeTestEnvironment,
   sessionCodec as openCodeSessionCodec,
   listOpenCodeModels,
-} from "@paperclipai/adapter-opencode-local/server";
+} from "@stapler/adapter-opencode-local/server";
 import {
   agentConfigurationDoc as openCodeAgentConfigurationDoc,
   models as openCodeModels,
   modelProfiles as openCodeModelProfiles,
-} from "@paperclipai/adapter-opencode-local";
+} from "@stapler/adapter-opencode-local";
 import {
   execute as openclawGatewayExecute,
   testEnvironment as openclawGatewayTestEnvironment,
-} from "@paperclipai/adapter-openclaw-gateway/server";
+} from "@stapler/adapter-openclaw-gateway/server";
 import {
   agentConfigurationDoc as openclawGatewayAgentConfigurationDoc,
   models as openclawGatewayModels,
-} from "@paperclipai/adapter-openclaw-gateway";
+} from "@stapler/adapter-openclaw-gateway";
 import { listCodexModels, refreshCodexModels } from "./codex-models.js";
 import { listCursorModels } from "./cursor-models.js";
 import {
@@ -119,11 +108,11 @@ import {
   testEnvironment as piTestEnvironment,
   sessionCodec as piSessionCodec,
   listPiModels,
-} from "@paperclipai/adapter-pi-local/server";
+} from "@stapler/adapter-pi-local/server";
 import {
   agentConfigurationDoc as piAgentConfigurationDoc,
   modelProfiles as piModelProfiles,
-} from "@paperclipai/adapter-pi-local";
+} from "@stapler/adapter-pi-local";
 import {
   execute as hermesExecute,
   testEnvironment as hermesTestEnvironment,
@@ -447,15 +436,15 @@ const hermesLocalAdapter: ServerAdapterModule = {
         ? (existingConfig.env as Record<string, string>)
         : {};
     const explicitApiKey =
-      typeof existingEnv.PAPERCLIP_API_KEY === "string" && existingEnv.PAPERCLIP_API_KEY.trim().length > 0;
+      typeof existingEnv.STAPLER_API_KEY === "string" && existingEnv.STAPLER_API_KEY.trim().length > 0;
     const promptTemplate =
       typeof existingConfig.promptTemplate === "string" && existingConfig.promptTemplate.trim().length > 0
         ? existingConfig.promptTemplate
         : "";
     const authGuardPrompt = [
       "Paperclip API safety rule:",
-      "Use Authorization: Bearer $PAPERCLIP_API_KEY on every Paperclip API request.",
-      "Use X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID on every Paperclip API request that writes or mutates data, including comments and issue updates.",
+      "Use Authorization: Bearer $STAPLER_API_KEY on every Paperclip API request.",
+      "Use X-Paperclip-Run-Id: $STAPLER_RUN_ID on every Paperclip API request that writes or mutates data, including comments and issue updates.",
       "Never use a board, browser, or local-board session for Paperclip API writes.",
     ].join("\n");
 
@@ -463,8 +452,8 @@ const hermesLocalAdapter: ServerAdapterModule = {
       ...existingConfig,
       env: {
         ...existingEnv,
-        ...(!explicitApiKey ? { PAPERCLIP_API_KEY: normalizedCtx.authToken } : {}),
-        PAPERCLIP_RUN_ID: normalizedCtx.runId,
+        ...(!explicitApiKey ? { STAPLER_API_KEY: normalizedCtx.authToken } : {}),
+        STAPLER_RUN_ID: normalizedCtx.runId,
       },
     };
 

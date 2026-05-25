@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { Router } from "express";
 import type { Request } from "express";
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import {
   assets,
   agentApiKeys,
@@ -27,7 +27,7 @@ import {
   invites,
   joinRequests,
   principalPermissionGrants,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import {
   acceptInviteSchema,
   createCliAuthChallengeSchema,
@@ -44,8 +44,8 @@ import {
   updateMemberPermissionsSchema,
   updateUserCompanyAccessSchema,
   PERMISSION_KEYS
-} from "@paperclipai/shared";
-import type { DeploymentExposure, DeploymentMode, HumanCompanyMembershipRole, PermissionKey } from "@paperclipai/shared";
+} from "@stapler/shared";
+import type { DeploymentExposure, DeploymentMode, HumanCompanyMembershipRole, PermissionKey } from "@stapler/shared";
 import {
   forbidden,
   conflict,
@@ -1457,7 +1457,7 @@ function buildOnboardingDiscoveryDiagnostics(input: {
       code: "openclaw_onboarding_private_host_not_allowed",
       level: "warn",
       message: `Onboarding host "${apiHost}" is not in allowed hostnames for authenticated/private mode.`,
-      hint: `Run pnpm paperclipai allowed-hostname ${apiHost}`
+      hint: `Run pnpm stapler allowed-hostname ${apiHost}`
     });
   }
 
@@ -1554,7 +1554,7 @@ function buildInviteOnboardingManifest(
     ),
     onboarding: {
       instructions:
-        "Join as an external Paperclip agent, save your one-time claim secret, wait for board approval, then claim your API key. Use requestType='agent', include your agentName and capabilities, and set adapterType plus agentDefaultsPayload for your runtime when applicable. OpenClaw Gateway agents must use adapterType='openclaw_gateway', set agentDefaultsPayload.url to a ws:// or wss:// gateway endpoint, and include agentDefaultsPayload.headers.x-openclaw-token.",
+        "Join as an OpenClaw Gateway agent, save your one-time claim secret, wait for board approval, then claim your API key. Save the claim response token to ~/.openclaw/workspace/paperclip-claimed-api-key.json and load STAPLER_API_KEY from that file before starting heartbeat loops. You MUST submit adapterType='openclaw_gateway', set agentDefaultsPayload.url to your ws:// or wss:// OpenClaw gateway endpoint, and include agentDefaultsPayload.headers.x-openclaw-token (or legacy x-openclaw-auth).",
       inviteMessage: extractInviteMessage(invite),
       recommendedAdapterType: null,
       requiredFields: {
@@ -1589,7 +1589,7 @@ function buildInviteOnboardingManifest(
         guidance:
           opts.deploymentMode === "authenticated" &&
           opts.deploymentExposure === "private"
-            ? "If OpenClaw runs on another machine, ensure the Paperclip hostname is reachable and allowed via `pnpm paperclipai allowed-hostname <host>`."
+            ? "If OpenClaw runs on another machine, ensure the Paperclip hostname is reachable and allowed via `pnpm stapler allowed-hostname <host>`."
             : "Ensure OpenClaw can reach this Paperclip API base URL for invite, claim, and skill bootstrap calls."
       },
       textInstructions: {
@@ -1731,7 +1731,24 @@ export function buildInviteOnboardingTextDocument(
       "claimSecret": "<one-time-claim-secret>"
     }
 
-    On successful claim, save the full JSON response somewhere private for your runtime and set PAPERCLIP_API_KEY and PAPERCLIP_API_URL for future Paperclip API calls.
+    On successful claim, save the full JSON response to:
+
+    - ~/.openclaw/workspace/paperclip-claimed-api-key.json
+    chmod 600 ~/.openclaw/workspace/paperclip-claimed-api-key.json
+
+    And set the STAPLER_API_KEY and STAPLER_API_URL in your environment variables as specified here:
+    https://docs.openclaw.ai/help/environment
+
+    e.g. 
+
+    {
+      env: {
+        STAPLER_API_KEY: "...",
+        STAPLER_API_URL: "...",
+      },
+    }
+
+    Then set STAPLER_API_KEY and STAPLER_API_URL from the saved token field for every heartbeat run.
 
     Important:
     - claim secrets expire
@@ -1742,7 +1759,7 @@ export function buildInviteOnboardingTextDocument(
     GET ${onboarding.skill.url}
     Install path: ${onboarding.skill.installPath}
 
-    Use your runtime's normal skill or instruction installation path.
+    Be sure to prepend your STAPLER_API_URL to the top of your skill and note the path to your STAPLER_API_URL
 
     ## Text onboarding URL
     ${onboarding.textInstructions.url}
@@ -1775,7 +1792,7 @@ export function buildInviteOnboardingTextDocument(
 
       If none are reachable: ask your human operator for a reachable hostname/address and help them update network configuration.
       For authenticated/private mode, they may need:
-      - pnpm paperclipai allowed-hostname <host>
+      - pnpm stapler allowed-hostname <host>
       - then restart Paperclip and retry onboarding.
     `);
   }

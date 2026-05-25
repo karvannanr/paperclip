@@ -1,18 +1,4 @@
-import type {
-  CompanySecret,
-  CompanySecretUsageBinding,
-  CompanySecretProviderConfig,
-  SecretProviderConfigDiscoveryPreviewResult,
-  RemoteSecretImportPreviewResult,
-  RemoteSecretImportResult,
-  SecretAccessEvent,
-  SecretManagedMode,
-  SecretProvider,
-  SecretProviderConfigStatus,
-  SecretProviderConfigHealthResponse,
-  SecretProviderDescriptor,
-  SecretStatus,
-} from "@paperclipai/shared";
+import type { CompanySecret, SecretProviderDescriptor, SecretProvider } from "@stapler/shared";
 import { api } from "./client";
 
 export interface SecretUsageResponse {

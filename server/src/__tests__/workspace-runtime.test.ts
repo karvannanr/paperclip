@@ -16,7 +16,7 @@ import {
   projectWorkspaces,
   projects,
   workspaceRuntimeServices,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import { eq } from "drizzle-orm";
 import {
   buildWorkspaceRuntimeDesiredStatePatch,
@@ -39,7 +39,7 @@ import {
 } from "../services/workspace-runtime.ts";
 import { writeLocalServiceRegistryRecord } from "../services/local-service-supervisor.ts";
 import { resolvePaperclipConfigPath } from "../paths.ts";
-import type { WorkspaceOperation } from "@paperclipai/shared";
+import type { WorkspaceOperation } from "@stapler/shared";
 import type { WorkspaceOperationRecorder } from "../services/workspace-operations.ts";
 import {
   getEmbeddedPostgresTestSupport,
@@ -164,10 +164,10 @@ afterEach(async () => {
       leasedRunIds.delete(runId);
     }),
   );
-  delete process.env.PAPERCLIP_CONFIG;
-  delete process.env.PAPERCLIP_HOME;
-  delete process.env.PAPERCLIP_INSTANCE_ID;
-  delete process.env.PAPERCLIP_WORKTREES_DIR;
+  delete process.env.STAPLER_CONFIG;
+  delete process.env.STAPLER_HOME;
+  delete process.env.STAPLER_INSTANCE_ID;
+  delete process.env.STAPLER_WORKTREES_DIR;
   delete process.env.DATABASE_URL;
   await resetRuntimeServicesForTests();
 });
@@ -177,15 +177,15 @@ describe("sanitizeRuntimeServiceBaseEnv", () => {
     const sanitized = sanitizeRuntimeServiceBaseEnv({
       PATH: process.env.PATH,
       DATABASE_URL: "postgres://example.test/paperclip",
-      PAPERCLIP_HOME: "/tmp/paperclip-home",
-      PAPERCLIP_INSTANCE_ID: "runtime-instance",
+      STAPLER_HOME: "/tmp/paperclip-home",
+      STAPLER_INSTANCE_ID: "runtime-instance",
       npm_config_tailscale_auth: "true",
       npm_config_authenticated_private: "true",
       HOST: "0.0.0.0",
     });
 
-    expect(sanitized.PAPERCLIP_HOME).toBeUndefined();
-    expect(sanitized.PAPERCLIP_INSTANCE_ID).toBeUndefined();
+    expect(sanitized.STAPLER_HOME).toBeUndefined();
+    expect(sanitized.STAPLER_INSTANCE_ID).toBeUndefined();
     expect(sanitized.DATABASE_URL).toBeUndefined();
     expect(sanitized.npm_config_tailscale_auth).toBeUndefined();
     expect(sanitized.npm_config_authenticated_private).toBeUndefined();
@@ -197,7 +197,7 @@ describe("ensureServerWorkspaceLinksCurrent", () => {
   it("relinks stale server workspace dependencies inside the current repo root", async () => {
     const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-links-"));
     const staleRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-links-stale-"));
-    const serverNodeModulesScopeDir = path.join(repoRoot, "server", "node_modules", "@paperclipai");
+    const serverNodeModulesScopeDir = path.join(repoRoot, "server", "node_modules", "@stapler");
     const expectedPackageDir = path.join(repoRoot, "packages", "db");
     const stalePackageDir = path.join(staleRoot, "db");
 
@@ -210,21 +210,21 @@ describe("ensureServerWorkspaceLinksCurrent", () => {
     await fs.writeFile(
       path.join(repoRoot, "server", "package.json"),
       JSON.stringify({
-        name: "@paperclipai/server",
+        name: "@stapler/server",
         dependencies: {
-          "@paperclipai/db": "workspace:*",
+          "@stapler/db": "workspace:*",
         },
       }),
       "utf8",
     );
     await fs.writeFile(
       path.join(expectedPackageDir, "package.json"),
-      JSON.stringify({ name: "@paperclipai/db" }),
+      JSON.stringify({ name: "@stapler/db" }),
       "utf8",
     );
     await fs.writeFile(
       path.join(stalePackageDir, "package.json"),
-      JSON.stringify({ name: "@paperclipai/db" }),
+      JSON.stringify({ name: "@stapler/db" }),
       "utf8",
     );
     await fs.symlink(stalePackageDir, path.join(serverNodeModulesScopeDir, "db"));
@@ -235,7 +235,7 @@ describe("ensureServerWorkspaceLinksCurrent", () => {
 
   it("skips relinking when server workspace dependencies already point at the repo", async () => {
     const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-links-current-"));
-    const serverNodeModulesScopeDir = path.join(repoRoot, "server", "node_modules", "@paperclipai");
+    const serverNodeModulesScopeDir = path.join(repoRoot, "server", "node_modules", "@stapler");
     const expectedPackageDir = path.join(repoRoot, "packages", "db");
 
     await fs.mkdir(path.join(repoRoot, "server"), { recursive: true });
@@ -246,16 +246,16 @@ describe("ensureServerWorkspaceLinksCurrent", () => {
     await fs.writeFile(
       path.join(repoRoot, "server", "package.json"),
       JSON.stringify({
-        name: "@paperclipai/server",
+        name: "@stapler/server",
         dependencies: {
-          "@paperclipai/db": "workspace:*",
+          "@stapler/db": "workspace:*",
         },
       }),
       "utf8",
     );
     await fs.writeFile(
       path.join(expectedPackageDir, "package.json"),
-      JSON.stringify({ name: "@paperclipai/db" }),
+      JSON.stringify({ name: "@stapler/db" }),
       "utf8",
     );
     await fs.symlink(expectedPackageDir, path.join(serverNodeModulesScopeDir, "db"));
@@ -266,7 +266,7 @@ describe("ensureServerWorkspaceLinksCurrent", () => {
   it("skips relinking outside linked git worktrees", async () => {
     const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-links-non-worktree-"));
     const staleRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-links-non-worktree-stale-"));
-    const serverNodeModulesScopeDir = path.join(repoRoot, "server", "node_modules", "@paperclipai");
+    const serverNodeModulesScopeDir = path.join(repoRoot, "server", "node_modules", "@stapler");
     const expectedPackageDir = path.join(repoRoot, "packages", "db");
     const stalePackageDir = path.join(staleRoot, "db");
 
@@ -279,21 +279,21 @@ describe("ensureServerWorkspaceLinksCurrent", () => {
     await fs.writeFile(
       path.join(repoRoot, "server", "package.json"),
       JSON.stringify({
-        name: "@paperclipai/server",
+        name: "@stapler/server",
         dependencies: {
-          "@paperclipai/db": "workspace:*",
+          "@stapler/db": "workspace:*",
         },
       }),
       "utf8",
     );
     await fs.writeFile(
       path.join(expectedPackageDir, "package.json"),
-      JSON.stringify({ name: "@paperclipai/db" }),
+      JSON.stringify({ name: "@stapler/db" }),
       "utf8",
     );
     await fs.writeFile(
       path.join(stalePackageDir, "package.json"),
-      JSON.stringify({ name: "@paperclipai/db" }),
+      JSON.stringify({ name: "@stapler/db" }),
       "utf8",
     );
     await fs.symlink(stalePackageDir, path.join(serverNodeModulesScopeDir, "db"));
@@ -642,9 +642,9 @@ describe("realizeExecutionWorkspace", () => {
       [
         "#!/usr/bin/env bash",
         "set -euo pipefail",
-        "printf '%s\\n' \"$PAPERCLIP_WORKSPACE_BRANCH\" > .paperclip-provision-branch",
-        "printf '%s\\n' \"$PAPERCLIP_WORKSPACE_BASE_CWD\" > .paperclip-provision-base",
-        "printf '%s\\n' \"$PAPERCLIP_WORKSPACE_CREATED\" > .paperclip-provision-created",
+        "printf '%s\\n' \"$STAPLER_WORKSPACE_BRANCH\" > .paperclip-provision-branch",
+        "printf '%s\\n' \"$STAPLER_WORKSPACE_BASE_CWD\" > .paperclip-provision-base",
+        "printf '%s\\n' \"$STAPLER_WORKSPACE_CREATED\" > .paperclip-provision-created",
       ].join("\n"),
       "utf8",
     );
@@ -822,9 +822,9 @@ describe("realizeExecutionWorkspace", () => {
     const sharedConfigPath = path.join(sharedConfigDir, "config.json");
     const sharedEnvPath = path.join(sharedConfigDir, ".env");
 
-    process.env.PAPERCLIP_HOME = paperclipHome;
-    process.env.PAPERCLIP_INSTANCE_ID = instanceId;
-    process.env.PAPERCLIP_WORKTREES_DIR = isolatedWorktreeHome;
+    process.env.STAPLER_HOME = paperclipHome;
+    process.env.STAPLER_INSTANCE_ID = instanceId;
+    process.env.STAPLER_WORKTREES_DIR = isolatedWorktreeHome;
     // Keep this server-side fixture on provision-worktree.sh's config writer path;
     // CLI/database seeding is covered by the CLI worktree tests.
     await fs.symlink(process.execPath, path.join(isolatedBin, "node"));
@@ -953,11 +953,11 @@ describe("realizeExecutionWorkspace", () => {
       );
       expect(envContents).not.toContain("DATABASE_URL=");
       const envVars = parseEnvContents(envContents);
-      expect(envVars.PAPERCLIP_HOME).toBe(isolatedWorktreeHome);
-      expect(envVars.PAPERCLIP_INSTANCE_ID).toBe(expectedInstanceId);
-      expect(await fs.realpath(envVars.PAPERCLIP_CONFIG!)).toBe(await fs.realpath(configPath));
-      expect(envVars.PAPERCLIP_IN_WORKTREE).toBe("true");
-      expect(envVars.PAPERCLIP_WORKTREE_NAME).toBe("PAP-885-show-worktree-banner");
+      expect(envVars.STAPLER_HOME).toBe(isolatedWorktreeHome);
+      expect(envVars.STAPLER_INSTANCE_ID).toBe(expectedInstanceId);
+      expect(await fs.realpath(envVars.STAPLER_CONFIG!)).toBe(await fs.realpath(configPath));
+      expect(envVars.STAPLER_IN_WORKTREE).toBe("true");
+      expect(envVars.STAPLER_WORKTREE_NAME).toBe("PAP-885-show-worktree-banner");
 
       process.chdir(workspace.cwd);
       expect(resolvePaperclipConfigPath()).toBe(configPath);
@@ -978,7 +978,7 @@ describe("realizeExecutionWorkspace", () => {
         ) + "\n",
         "utf8",
       );
-      await fs.writeFile(envPath, `${envContents}PAPERCLIP_WORKTREE_COLOR="#112233"\n`, "utf8");
+      await fs.writeFile(envPath, `${envContents}STAPLER_WORKTREE_COLOR="#112233"\n`, "utf8");
 
       const reusedWorkspace = await realizeExecutionWorkspace(workspaceInput);
       const reusedConfigContents = JSON.parse(await fs.readFile(configPath, "utf8"));
@@ -988,7 +988,7 @@ describe("realizeExecutionWorkspace", () => {
       expect(reusedWorkspace.created).toBe(false);
       expect(reusedConfigContents.server.port).toBe(preservedPort);
       expect(reusedConfigContents.database.embeddedPostgresDataDir).toBe(path.join(expectedInstanceRoot, "db"));
-      expect(reusedEnvContents).toContain('PAPERCLIP_WORKTREE_COLOR="#112233"');
+      expect(reusedEnvContents).toContain('STAPLER_WORKTREE_COLOR="#112233"');
     } finally {
       process.chdir(previousCwd);
       if (previousPath === undefined) {
@@ -1215,8 +1215,8 @@ describe("realizeExecutionWorkspace", () => {
           env: {
             ...process.env,
             PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
-            PAPERCLIP_WORKSPACE_BASE_CWD: baseRoot,
-            PAPERCLIP_WORKSPACE_CWD: worktreeRoot,
+            STAPLER_WORKSPACE_BASE_CWD: baseRoot,
+            STAPLER_WORKSPACE_CWD: worktreeRoot,
           },
         });
       } catch (error) {
@@ -1292,8 +1292,8 @@ describe("realizeExecutionWorkspace", () => {
         env: {
           ...process.env,
           PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
-          PAPERCLIP_WORKSPACE_BASE_CWD: baseRoot,
-          PAPERCLIP_WORKSPACE_CWD: worktreeRoot,
+          STAPLER_WORKSPACE_BASE_CWD: baseRoot,
+          STAPLER_WORKSPACE_CWD: worktreeRoot,
         },
       });
 
@@ -1573,7 +1573,7 @@ describe("realizeExecutionWorkspace", () => {
       [
         "#!/usr/bin/env bash",
         "set -euo pipefail",
-        "printf '%s\\n' \"$PAPERCLIP_WORKSPACE_BRANCH\" > .paperclip-restored-branch",
+        "printf '%s\\n' \"$STAPLER_WORKSPACE_BRANCH\" > .paperclip-restored-branch",
       ].join("\n"),
       "utf8",
     );
@@ -2191,7 +2191,7 @@ describe("ensureRuntimeServicesForRun", () => {
       worktreePath: worktreeWorkspaceRoot,
     };
     const serviceCommand =
-      "node -e \"require('node:http').createServer((req,res)=>res.end(process.env.PAPERCLIP_HOME)).listen(Number(process.env.PORT), '127.0.0.1')\"";
+      "node -e \"require('node:http').createServer((req,res)=>res.end(process.env.STAPLER_HOME)).listen(Number(process.env.PORT), '127.0.0.1')\"";
     const config = {
       workspaceRuntime: {
         services: [
@@ -2200,7 +2200,7 @@ describe("ensureRuntimeServicesForRun", () => {
             command: serviceCommand,
             cwd: ".",
             env: {
-              PAPERCLIP_HOME: "{{workspace.cwd}}/.paperclip/runtime-services",
+              STAPLER_HOME: "{{workspace.cwd}}/.paperclip/runtime-services",
             },
             port: { type: "auto" },
             readiness: {
@@ -2281,9 +2281,9 @@ describe("ensureRuntimeServicesForRun", () => {
         [
           "const fs = require('node:fs');",
           `fs.writeFileSync(${JSON.stringify(envCapturePath)}, JSON.stringify({`,
-          "paperclipConfig: process.env.PAPERCLIP_CONFIG ?? null,",
-          "paperclipHome: process.env.PAPERCLIP_HOME ?? null,",
-          "paperclipInstanceId: process.env.PAPERCLIP_INSTANCE_ID ?? null,",
+          "paperclipConfig: process.env.STAPLER_CONFIG ?? null,",
+          "paperclipHome: process.env.STAPLER_HOME ?? null,",
+          "paperclipInstanceId: process.env.STAPLER_INSTANCE_ID ?? null,",
           "databaseUrl: process.env.DATABASE_URL ?? null,",
           "customEnv: process.env.RUNTIME_CUSTOM_ENV ?? null,",
           "port: process.env.PORT ?? null,",
@@ -2293,9 +2293,9 @@ describe("ensureRuntimeServicesForRun", () => {
       ),
     ].join(" ");
 
-    process.env.PAPERCLIP_CONFIG = "/tmp/base-paperclip-config.json";
-    process.env.PAPERCLIP_HOME = "/tmp/base-paperclip-home";
-    process.env.PAPERCLIP_INSTANCE_ID = "base-instance";
+    process.env.STAPLER_CONFIG = "/tmp/base-paperclip-config.json";
+    process.env.STAPLER_HOME = "/tmp/base-paperclip-home";
+    process.env.STAPLER_INSTANCE_ID = "base-instance";
     process.env.DATABASE_URL = "postgres://shared-db.example.com/paperclip";
 
     const runId = "run-env";
@@ -2819,8 +2819,8 @@ describeEmbeddedPostgres("workspace runtime startup reconciliation", () => {
   it("adopts a live auto-port shared service after runtime state is reset", async () => {
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-reconcile-"));
     const paperclipHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-home-"));
-    process.env.PAPERCLIP_HOME = paperclipHome;
-    process.env.PAPERCLIP_INSTANCE_ID = `runtime-reconcile-${randomUUID()}`;
+    process.env.STAPLER_HOME = paperclipHome;
+    process.env.STAPLER_INSTANCE_ID = `runtime-reconcile-${randomUUID()}`;
 
     const companyId = randomUUID();
     const agentId = randomUUID();

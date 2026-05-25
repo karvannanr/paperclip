@@ -33,8 +33,8 @@ const DATA_DIR_OPTION_HELP =
   "Paperclip data directory root (isolates state from ~/.paperclip)";
 
 program
-  .name("paperclipai")
-  .description("Paperclip CLI — setup, diagnose, and configure your instance")
+  .name("stapler")
+  .description("Stapler CLI — setup, diagnose, and configure your instance")
   .version(cliVersion);
 
 program.hook("preAction", (_thisCommand, actionCommand) => {

@@ -3,7 +3,7 @@
 import { act } from "react";
 import type { ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
-import type { ExecutionWorkspace, Issue } from "@paperclipai/shared";
+import type { ExecutionWorkspace, Issue } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IssueWorkspaceCard } from "./IssueWorkspaceCard";
 
@@ -103,6 +103,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     startedAt: null,
     completedAt: null,
     cancelledAt: null,
+    scheduledFor: null,
     hiddenAt: null,
     createdAt: new Date("2026-04-16T04:30:00.000Z"),
     updatedAt: new Date("2026-04-16T05:30:00.000Z"),

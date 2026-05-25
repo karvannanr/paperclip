@@ -19,11 +19,13 @@ import {
   reconcilePendingMigrationHistory,
   formatDatabaseBackupResult,
   runDatabaseBackup,
+  buildEmbeddedPostgresFlags,
+  assertPgNotReachableOnInterfaces,
   authUsers,
   companies,
   companyMemberships,
   instanceUserRoles,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import detectPort from "detect-port";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
@@ -76,6 +78,7 @@ type EmbeddedPostgresCtor = new (opts: {
   port: number;
   persistent: boolean;
   initdbFlags?: string[];
+  postgresFlags?: string[];
   onLog?: (message: unknown) => void;
   onError?: (message: unknown) => void;
 }) => EmbeddedPostgresInstance;
@@ -92,14 +95,14 @@ export interface StartedServer {
 export async function startServer(): Promise<StartedServer> {
   let config = loadConfig();
   initTelemetry({ enabled: config.telemetryEnabled });
-  if (process.env.PAPERCLIP_SECRETS_PROVIDER === undefined) {
-    process.env.PAPERCLIP_SECRETS_PROVIDER = config.secretsProvider;
+  if (process.env.STAPLER_SECRETS_PROVIDER === undefined) {
+    process.env.STAPLER_SECRETS_PROVIDER = config.secretsProvider;
   }
-  if (process.env.PAPERCLIP_SECRETS_STRICT_MODE === undefined) {
-    process.env.PAPERCLIP_SECRETS_STRICT_MODE = config.secretsStrictMode ? "true" : "false";
+  if (process.env.STAPLER_SECRETS_STRICT_MODE === undefined) {
+    process.env.STAPLER_SECRETS_STRICT_MODE = config.secretsStrictMode ? "true" : "false";
   }
-  if (process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE === undefined) {
-    process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = config.secretsMasterKeyFilePath;
+  if (process.env.STAPLER_SECRETS_MASTER_KEY_FILE === undefined) {
+    process.env.STAPLER_SECRETS_MASTER_KEY_FILE = config.secretsMasterKeyFilePath;
   }
   
   type MigrationSummary =
@@ -116,8 +119,8 @@ export async function startServer(): Promise<StartedServer> {
   }
   
   async function promptApplyMigrations(migrations: string[]): Promise<boolean> {
-    if (process.env.PAPERCLIP_MIGRATION_AUTO_APPLY === "true") return true;
-    if (process.env.PAPERCLIP_MIGRATION_PROMPT === "never") return false;
+    if (process.env.STAPLER_MIGRATION_AUTO_APPLY === "true") return true;
+    if (process.env.STAPLER_MIGRATION_PROMPT === "never") return false;
     if (!stdin.isTTY || !stdout.isTTY) return true;
   
     const prompt = createInterface({ input: stdin, output: stdout });
@@ -163,7 +166,7 @@ export async function startServer(): Promise<StartedServer> {
       if (!apply) {
         throw new Error(
           `${label} has pending migrations (${formatPendingMigrationSummary(state.pendingMigrations)}). ` +
-            "Refusing to start against a stale schema. Run pnpm db:migrate or set PAPERCLIP_MIGRATION_AUTO_APPLY=true.",
+            "Refusing to start against a stale schema. Run pnpm db:migrate or set STAPLER_MIGRATION_AUTO_APPLY=true.",
         );
       }
   
@@ -176,7 +179,7 @@ export async function startServer(): Promise<StartedServer> {
     if (!apply) {
       throw new Error(
         `${label} has pending migrations (${formatPendingMigrationSummary(state.pendingMigrations)}). ` +
-          "Refusing to start against a stale schema. Run pnpm db:migrate or set PAPERCLIP_MIGRATION_AUTO_APPLY=true.",
+          "Refusing to start against a stale schema. Run pnpm db:migrate or set STAPLER_MIGRATION_AUTO_APPLY=true.",
       );
     }
   
@@ -325,7 +328,7 @@ export async function startServer(): Promise<StartedServer> {
     const configuredPort = config.embeddedPostgresPort;
     let port = configuredPort;
     const logBuffer = createEmbeddedPostgresLogBuffer(120);
-    const verboseEmbeddedPostgresLogs = process.env.PAPERCLIP_EMBEDDED_POSTGRES_VERBOSE === "true";
+    const verboseEmbeddedPostgresLogs = process.env.STAPLER_EMBEDDED_POSTGRES_VERBOSE === "true";
     const appendEmbeddedPostgresLog = (message: unknown) => {
       logBuffer.append(message);
       if (!verboseEmbeddedPostgresLogs) {
@@ -416,6 +419,7 @@ export async function startServer(): Promise<StartedServer> {
           port,
           persistent: true,
           initdbFlags: ["--encoding=UTF8", "--locale=C", "--lc-messages=C"],
+          postgresFlags: buildEmbeddedPostgresFlags(),
           onLog: appendEmbeddedPostgresLog,
           onError: appendEmbeddedPostgresLog,
         });
@@ -448,9 +452,15 @@ export async function startServer(): Promise<StartedServer> {
           });
         }
         embeddedPostgresStartedByThisProcess = true;
+        try {
+          await assertPgNotReachableOnInterfaces(port);
+        } catch (err) {
+          logger.error({ err, port }, "Embedded PostgreSQL lockdown assertion failed — database is reachable on a non-loopback interface");
+          throw err;
+        }
       }
     }
-  
+
     const embeddedAdminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${port}/postgres`;
     const dbStatus = await ensurePostgresDatabase(embeddedAdminConnectionString, "paperclip");
     if (dbStatus === "created") {
@@ -671,7 +681,7 @@ export async function startServer(): Promise<StartedServer> {
     bindHost: runtimeListenHost,
     port: listenPort,
   });
-  const configuredApiUrl = process.env.PAPERCLIP_API_URL?.trim() || runtimeApiUrl;
+  const configuredApiUrl = process.env.STAPLER_API_URL?.trim() || runtimeApiUrl;
   const runtimeApiCandidates = buildRuntimeApiCandidateUrls({
     preferredApiUrl: configuredApiUrl,
     authPublicBaseUrl: config.authPublicBaseUrl ?? null,
@@ -679,11 +689,11 @@ export async function startServer(): Promise<StartedServer> {
     bindHost: runtimeListenHost,
     port: listenPort,
   });
-  process.env.PAPERCLIP_LISTEN_HOST = runtimeListenHost;
-  process.env.PAPERCLIP_LISTEN_PORT = String(listenPort);
-  process.env.PAPERCLIP_RUNTIME_API_URL = runtimeApiUrl;
-  process.env.PAPERCLIP_RUNTIME_API_CANDIDATES_JSON = JSON.stringify(runtimeApiCandidates);
-  process.env.PAPERCLIP_API_URL = configuredApiUrl;
+  process.env.STAPLER_LISTEN_HOST = runtimeListenHost;
+  process.env.STAPLER_LISTEN_PORT = String(listenPort);
+  process.env.STAPLER_RUNTIME_API_URL = runtimeApiUrl;
+  process.env.STAPLER_RUNTIME_API_CANDIDATES_JSON = JSON.stringify(runtimeApiCandidates);
+  process.env.STAPLER_API_URL = configuredApiUrl;
   
   setupLiveEventsWebSocketServer(server, db as any, {
     deploymentMode: config.deploymentMode,
@@ -866,7 +876,7 @@ export async function startServer(): Promise<StartedServer> {
     server.listen(listenPort, config.host, () => {
       server.off("error", onError);
       logger.info(`Server listening on ${config.host}:${listenPort}`);
-      if (process.env.PAPERCLIP_OPEN_ON_LISTEN === "true") {
+      if (process.env.STAPLER_OPEN_ON_LISTEN === "true") {
         const openHost = config.host === "0.0.0.0" || config.host === "::" ? "127.0.0.1" : config.host;
         const url = `http://${openHost}:${listenPort}`;
         void import("open")
@@ -891,6 +901,7 @@ export async function startServer(): Promise<StartedServer> {
         migrationSummary,
         heartbeatSchedulerEnabled: config.heartbeatSchedulerEnabled,
         heartbeatSchedulerIntervalMs: config.heartbeatSchedulerIntervalMs,
+        orphanReapStaleThresholdMs: config.orphanReapStaleThresholdMs,
         databaseBackupEnabled: config.databaseBackupEnabled,
         databaseBackupIntervalMinutes: config.databaseBackupIntervalMinutes,
         databaseBackupRetentionDays: config.databaseBackupRetentionDays,

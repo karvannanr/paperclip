@@ -50,7 +50,7 @@ interface ApiClientOptions {
   recoverAuth?: (input: RecoverAuthInput) => Promise<string | null>;
 }
 
-export class PaperclipApiClient {
+export class StaplerApiClient {
   readonly apiBase: string;
   apiKey?: string;
   readonly runId?: string;
@@ -112,7 +112,7 @@ export class PaperclipApiClient {
     }
 
     if (this.runId) {
-      headers["x-paperclip-run-id"] = this.runId;
+      headers["x-stapler-run-id"] = this.runId;
     }
 
     let response: Response;
@@ -217,9 +217,9 @@ function buildConnectionErrorMessage(input: {
     "This usually means the Paperclip server is not running, the configured URL is wrong, or the request is being blocked before it reaches Paperclip.",
     "",
     "Try:",
-    "- Start Paperclip with `pnpm dev` or `pnpm paperclipai run`.",
+    "- Start Paperclip with `pnpm dev` or `pnpm stapler run`.",
     `- Verify the server is reachable with \`curl ${healthUrl}\`.`,
-    `- If Paperclip is running elsewhere, pass \`--api-base ${input.apiBase.replace(/\/+$/, "")}\` or set \`PAPERCLIP_API_URL\`.`,
+    `- If Paperclip is running elsewhere, pass \`--api-base ${input.apiBase.replace(/\/+$/, "")}\` or set \`STAPLER_API_URL\`.`,
   );
   return lines.join("\n");
 }

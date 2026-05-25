@@ -8,7 +8,7 @@ import type {
   CompanySkillProjectScanRequest,
   CompanySkillProjectScanResult,
   CompanySkillUpdateStatus,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { api } from "./client";
 
 export const companySkillsApi = {
@@ -52,7 +52,7 @@ export const companySkillsApi = {
       {},
     ),
   delete: (companyId: string, skillId: string) =>
-    api.delete<CompanySkill>(
+    api.delete<void>(
       `/companies/${encodeURIComponent(companyId)}/skills/${encodeURIComponent(skillId)}`,
     ),
 };

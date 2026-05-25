@@ -1,14 +1,14 @@
 {
-  "name": "@paperclipai/create-paperclip-plugin",
+  "name": "@stapler/create-paperclip-plugin",
   "version": "0.1.0",
   "license": "MIT",
-  "homepage": "https://github.com/paperclipai/paperclip",
+  "homepage": "https://github.com/googlarz/stapler",
   "bugs": {
-    "url": "https://github.com/paperclipai/paperclip/issues"
+    "url": "https://github.com/googlarz/stapler/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/paperclipai/paperclip",
+    "url": "https://github.com/googlarz/stapler",
     "directory": "packages/plugins/create-paperclip-plugin"
   },
   "type": "module",
@@ -41,10 +41,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@paperclipai/plugin-sdk": "workspace:*"
+    "@stapler/plugin-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
     "typescript": "^5.7.3"
-  }
+  },
+  "private": true
 }

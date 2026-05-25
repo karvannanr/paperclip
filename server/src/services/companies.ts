@@ -1,5 +1,5 @@
 import { and, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import {
   companies,
   companyLogos,
@@ -28,7 +28,7 @@ import {
   companyMemberships,
   companySkills,
   documents,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import { notFound, unprocessable } from "../errors.js";
 import { environmentService } from "./environments.js";
 
@@ -280,13 +280,15 @@ export function companyService(db: Db) {
         }
         await tx.delete(agentTaskSessions).where(eq(agentTaskSessions.companyId, id));
         await tx.delete(activityLog).where(eq(activityLog.companyId, id));
+        // financeEvents references costEvents and heartbeatRuns — must precede both
+        await tx.delete(financeEvents).where(eq(financeEvents.companyId, id));
+        // costEvents references heartbeatRuns — must precede heartbeatRuns
+        await tx.delete(costEvents).where(eq(costEvents.companyId, id));
         await tx.delete(heartbeatRuns).where(eq(heartbeatRuns.companyId, id));
         await tx.delete(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, id));
         await tx.delete(agentApiKeys).where(eq(agentApiKeys.companyId, id));
         await tx.delete(agentRuntimeState).where(eq(agentRuntimeState.companyId, id));
         await tx.delete(issueComments).where(eq(issueComments.companyId, id));
-        await tx.delete(costEvents).where(eq(costEvents.companyId, id));
-        await tx.delete(financeEvents).where(eq(financeEvents.companyId, id));
         await tx.delete(approvalComments).where(eq(approvalComments.companyId, id));
         await tx.delete(approvals).where(eq(approvals.companyId, id));
         await tx.delete(companySecrets).where(eq(companySecrets.companyId, id));

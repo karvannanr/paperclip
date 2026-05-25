@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { inferOpenAiCompatibleBiller, type AdapterExecutionContext, type AdapterExecutionResult } from "@paperclipai/adapter-utils";
+import { inferOpenAiCompatibleBiller, type AdapterExecutionContext, type AdapterExecutionResult } from "@stapler/adapter-utils";
 import {
   adapterExecutionTargetIsRemote,
   adapterExecutionTargetRemoteCwd,
@@ -22,7 +22,7 @@ import {
   runAdapterExecutionTargetProcess,
   runAdapterExecutionTargetShellCommand,
   startAdapterExecutionTargetPaperclipBridge,
-} from "@paperclipai/adapter-utils/execution-target";
+} from "@stapler/adapter-utils/execution-target";
 import {
   asString,
   asNumber,
@@ -38,19 +38,15 @@ import {
   renderTemplate,
   renderPaperclipWakePrompt,
   stringifyPaperclipWakePayload,
-  DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+  DEFAULT_STAPLER_AGENT_PROMPT_TEMPLATE,
   runChildProcess,
   readPaperclipRuntimeSkillEntries,
   readPaperclipIssueWorkModeFromContext,
   resolvePaperclipDesiredSkillNames,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@stapler/adapter-utils/server-utils";
 import { isOpenCodeUnknownSessionError, parseOpenCodeJsonl } from "./parse.js";
-import {
-  ensureOpenCodeModelConfiguredAndAvailable,
-  parseOpenCodeModelsOutput,
-  requireOpenCodeModelId,
-} from "./models.js";
-import { removeMaintainerOnlySkillSymlinks } from "@paperclipai/adapter-utils/server-utils";
+import { ensureOpenCodeModelConfiguredAndAvailable } from "./models.js";
+import { removeMaintainerOnlySkillSymlinks } from "@stapler/adapter-utils/server-utils";
 import { prepareOpenCodeRuntimeConfig } from "./runtime-config.js";
 import { SANDBOX_INSTALL_COMMAND } from "../index.js";
 
@@ -204,7 +200,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
   const promptTemplate = asString(
     config.promptTemplate,
-    DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+    DEFAULT_STAPLER_AGENT_PROMPT_TEMPLATE,
   );
   const command = asString(config.command, "opencode");
   const model = asString(config.model, "").trim();
@@ -240,9 +236,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
   const envConfig = parseObject(config.env);
   const hasExplicitApiKey =
-    typeof envConfig.PAPERCLIP_API_KEY === "string" && envConfig.PAPERCLIP_API_KEY.trim().length > 0;
+    typeof envConfig.STAPLER_API_KEY === "string" && envConfig.STAPLER_API_KEY.trim().length > 0;
   const env: Record<string, string> = { ...buildPaperclipEnv(agent) };
-  env.PAPERCLIP_RUN_ID = runId;
+  env.STAPLER_RUN_ID = runId;
   const wakeTaskId =
     (typeof context.taskId === "string" && context.taskId.trim().length > 0 && context.taskId.trim()) ||
     (typeof context.issueId === "string" && context.issueId.trim().length > 0 && context.issueId.trim()) ||
@@ -267,18 +263,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
   const wakePayloadJson = stringifyPaperclipWakePayload(context.paperclipWake);
-  const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
-  if (wakeTaskId) env.PAPERCLIP_TASK_ID = wakeTaskId;
-  if (issueWorkMode) env.PAPERCLIP_ISSUE_WORK_MODE = issueWorkMode;
-  if (wakeReason) env.PAPERCLIP_WAKE_REASON = wakeReason;
-  if (wakeCommentId) env.PAPERCLIP_WAKE_COMMENT_ID = wakeCommentId;
-  if (approvalId) env.PAPERCLIP_APPROVAL_ID = approvalId;
-  if (approvalStatus) env.PAPERCLIP_APPROVAL_STATUS = approvalStatus;
-  if (linkedIssueIds.length > 0) env.PAPERCLIP_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
-  if (wakePayloadJson) env.PAPERCLIP_WAKE_PAYLOAD_JSON = wakePayloadJson;
-  refreshPaperclipWorkspaceEnvForExecution({
-    env,
-    envConfig,
+  if (wakeTaskId) env.STAPLER_TASK_ID = wakeTaskId;
+  if (wakeReason) env.STAPLER_WAKE_REASON = wakeReason;
+  if (wakeCommentId) env.STAPLER_WAKE_COMMENT_ID = wakeCommentId;
+  if (approvalId) env.STAPLER_APPROVAL_ID = approvalId;
+  if (approvalStatus) env.STAPLER_APPROVAL_STATUS = approvalStatus;
+  if (linkedIssueIds.length > 0) env.STAPLER_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
+  if (wakePayloadJson) env.STAPLER_WAKE_PAYLOAD_JSON = wakePayloadJson;
+  applyPaperclipWorkspaceEnv(env, {
     workspaceCwd: effectiveWorkspaceCwd,
     workspaceSource,
     workspaceId,
@@ -289,13 +281,20 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     executionTargetIsRemote,
     executionCwd: effectiveExecutionCwd,
   });
+  if (workspaceHints.length > 0) env.STAPLER_WORKSPACES_JSON = JSON.stringify(workspaceHints);
+  const targetPaperclipApiUrl = adapterExecutionTargetPaperclipApiUrl(executionTarget);
+  if (targetPaperclipApiUrl) env.STAPLER_API_URL = targetPaperclipApiUrl;
+
+  for (const [key, value] of Object.entries(envConfig)) {
+    if (typeof value === "string") env[key] = value;
+  }
   // Prevent OpenCode from writing an opencode.json config file into the
   // project working directory (which would pollute the git repo).  Model
   // selection is already handled via the --model CLI flag.  Set after the
   // envConfig loop so user overrides cannot disable this guard.
   env.OPENCODE_DISABLE_PROJECT_CONFIG = "true";
   if (!hasExplicitApiKey && authToken) {
-    env.PAPERCLIP_API_KEY = authToken;
+    env.STAPLER_API_KEY = authToken;
   }
   const preparedRuntimeConfig = await prepareOpenCodeRuntimeConfig({ env, config });
   const localRuntimeConfigHome =
@@ -438,8 +437,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         target: runtimeExecutionTarget,
         runtimeRootDir: remoteRuntimeRootDir,
         adapterKey: "opencode",
-        timeoutSec,
-        hostApiToken: preparedRuntimeConfig.env.PAPERCLIP_API_KEY,
+        hostApiToken: preparedRuntimeConfig.env.STAPLER_API_KEY,
         onLog,
       });
       if (paperclipBridge) {
@@ -532,9 +530,20 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const shouldUseResumeDeltaPrompt = Boolean(sessionId) && wakePrompt.length > 0;
     const renderedPrompt = shouldUseResumeDeltaPrompt ? "" : renderTemplate(promptTemplate, templateData);
     const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
+    const delegationPolicySection = sessionId
+      ? ""
+      : [
+          "## Delegation Policy",
+          "",
+          "When delegating tasks to sub-agents using the `task` tool, you MUST set `run_in_background=false`.",
+          "NEVER use run_in_background=true — background tasks cannot report results back to you.",
+          "Your process exits when you stop responding, so all delegated work must complete synchronously.",
+          "run_in_background=false is the only safe option for multi-agent coordination.",
+        ].join("\n");
     const prompt = joinPromptSections([
       instructionsPrefix,
       renderedBootstrapPrompt,
+      delegationPolicySection,
       wakePrompt,
       sessionHandoffNote,
       renderedPrompt,
@@ -662,6 +671,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       };
     };
 
+    const MAX_DELEGATION_CONTINUATIONS = 2;
+
     try {
       const initial = await runAttempt(sessionId);
       const initialFailed =
@@ -679,7 +690,18 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         return toResult(retry, true);
       }
 
-      return toResult(initial);
+      // If the run triggered a background delegation, resume the session so the
+      // agent can collect the sub-agent result. Cap at MAX_DELEGATION_CONTINUATIONS.
+      let current = initial;
+      for (let i = 0; i < MAX_DELEGATION_CONTINUATIONS; i++) {
+        if (!current.parsed.hasBackgroundDelegation) break;
+        const continuationSessionId = current.parsed.sessionId ?? sessionId;
+        if (!continuationSessionId) break;
+        await onLog("stdout", `[paperclip] Background delegation detected; resuming session "${continuationSessionId}".\n`);
+        current = await runAttempt(continuationSessionId);
+      }
+
+      return toResult(current);
     } finally {
       await Promise.all([
         paperclipBridge?.stop(),

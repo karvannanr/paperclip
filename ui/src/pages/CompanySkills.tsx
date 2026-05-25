@@ -10,7 +10,7 @@ import type {
   CompanySkillProjectScanResult,
   CompanySkillSourceBadge,
   CompanySkillUpdateStatus,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { companySkillsApi } from "../api/companySkills";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -1067,7 +1067,7 @@ export function CompanySkills() {
       pushToast({
         tone: "success",
         title: "Skill removed",
-        body: `${skill.name} was removed from the company skill library.`,
+        body: `${deleteTargetDetail?.name ?? deleteTargetSkillId} was removed from the company skill library.`,
       });
     },
     onError: (error) => {

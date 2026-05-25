@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import os from "node:os";
 import path from "node:path";
-import type { QuotaWindow } from "@paperclipai/adapter-utils";
+import type { QuotaWindow } from "@stapler/adapter-utils";
 
 // Pure utility functions — import directly from adapter source
 import {
@@ -11,7 +11,7 @@ import {
   parseClaudeCliUsageText,
   readClaudeToken,
   claudeConfigDir,
-} from "@paperclipai/adapter-claude-local/server";
+} from "@stapler/adapter-claude-local/server";
 
 import {
   secondsToWindowLabel,
@@ -20,7 +20,7 @@ import {
   fetchCodexQuota,
   mapCodexRpcQuota,
   codexHomeDir,
-} from "@paperclipai/adapter-codex-local/server";
+} from "@stapler/adapter-codex-local/server";
 
 // ---------------------------------------------------------------------------
 // toPercent
@@ -329,14 +329,14 @@ describe("parseClaudeCliUsageText", () => {
         detail: "Resets 5pm (America/Chicago)",
       },
       {
-        label: "Current week (all models)",
+        label: "Weekly (all models)",
         usedPercent: 47,
         resetsAt: null,
         valueLabel: null,
         detail: "Resets Mar 18 at 7:59am (America/Chicago)",
       },
       {
-        label: "Current week (Sonnet only)",
+        label: "Weekly (Sonnet)",
         usedPercent: 0,
         resetsAt: null,
         valueLabel: null,
@@ -542,7 +542,7 @@ describe("fetchClaudeQuota", () => {
     const windows = await fetchClaudeQuota("token");
     expect(windows).toHaveLength(1);
     expect(windows[0]).toMatchObject({
-      label: "Current week (all models)",
+      label: "Weekly (all models)",
       usedPercent: 91,
       resetsAt: null,
     });
@@ -564,9 +564,9 @@ describe("fetchClaudeQuota", () => {
     });
     const windows = await fetchClaudeQuota("token");
     expect(windows).toHaveLength(2);
-    expect(windows[0]!.label).toBe("Current week (Sonnet only)");
+    expect(windows[0]!.label).toBe("Weekly (Sonnet)");
     expect(windows[0]!.usedPercent).toBe(23);
-    expect(windows[1]!.label).toBe("Current week (Opus only)");
+    expect(windows[1]!.label).toBe("Weekly (Opus)");
     expect(windows[1]!.usedPercent).toBe(85);
   });
 
@@ -588,9 +588,9 @@ describe("fetchClaudeQuota", () => {
     const labels = windows.map((w: QuotaWindow) => w.label);
     expect(labels).toEqual([
       "Current session",
-      "Current week (all models)",
-      "Current week (Sonnet only)",
-      "Current week (Opus only)",
+      "Weekly (all models)",
+      "Weekly (Sonnet)",
+      "Weekly (Opus)",
     ]);
     expect(windows.map((w: QuotaWindow) => w.usedPercent)).toEqual([10, 20, 30, 40]);
   });

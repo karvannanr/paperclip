@@ -3,7 +3,7 @@
 import { act, type AnchorHTMLAttributes, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Issue, RoutineListItem } from "@paperclipai/shared";
+import type { Issue, RoutineListItem } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Routines, buildRoutineGroups, sortRoutines } from "./Routines";
 
@@ -306,6 +306,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     hiddenAt: null,
     createdAt: new Date("2026-04-01T00:00:00.000Z"),
     updatedAt: new Date("2026-04-01T00:00:00.000Z"),
+    scheduledFor: null,
     labels: [],
     labelIds: [],
     myLastTouchAt: null,

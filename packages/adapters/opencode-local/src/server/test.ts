@@ -5,8 +5,7 @@ import type {
   AdapterEnvironmentCheck,
   AdapterEnvironmentTestContext,
   AdapterEnvironmentTestResult,
-} from "@paperclipai/adapter-utils";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
+} from "@stapler/adapter-utils";
 import {
   asBoolean,
   asNumber,
@@ -14,7 +13,7 @@ import {
   asStringArray,
   parseObject,
   ensurePathInEnv,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@stapler/adapter-utils/server-utils";
 import {
   ensureAdapterExecutionTargetCommandResolvable,
   maybeRunSandboxInstallCommand,
@@ -22,9 +21,7 @@ import {
   runAdapterExecutionTargetProcess,
   describeAdapterExecutionTarget,
   resolveAdapterExecutionTargetCwd,
-  prepareAdapterExecutionTargetRuntime,
-  overrideAdapterExecutionTargetRemoteCwd,
-} from "@paperclipai/adapter-utils/execution-target";
+} from "@stapler/adapter-utils/execution-target";
 import { discoverOpenCodeModels, ensureOpenCodeModelConfiguredAndAvailable } from "./models.js";
 import { parseOpenCodeJsonl } from "./parse.js";
 import { SANDBOX_INSTALL_COMMAND } from "../index.js";

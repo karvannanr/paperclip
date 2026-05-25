@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
-import { and, asc, desc, eq, gt, inArray, isNull, like, lt, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import { type SQL, and, asc, desc, eq, gt, inArray, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
+import type { Db } from "@stapler/db";
 import {
   activityLog,
   agentWakeupRequests,
@@ -27,7 +27,7 @@ import {
   labels,
   projectWorkspaces,
   projects,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import type {
   IssueCommentAuthorType,
   IssueCommentMetadata,
@@ -38,21 +38,9 @@ import type {
   IssueProductivityReview,
   IssueProductivityReviewTrigger,
   IssueRelationIssueSummary,
-  SuccessfulRunHandoffState,
-} from "@paperclipai/shared";
-import {
-  clampIssueRequestDepth,
-  extractAgentMentionIds,
-  extractProjectMentionIds,
-  issueCommentAuthorTypeSchema,
-  issueCommentMetadataSchema,
-  issueCommentPresentationSchema,
-  isUuidLike,
-  normalizeIssueIdentifier as normalizeIssueReferenceIdentifier,
-} from "@paperclipai/shared";
-import { conflict, HttpError, notFound, unprocessable } from "../errors.js";
-import { logger } from "../middleware/logger.js";
-import { parseObject } from "../adapters/utils.js";
+} from "@stapler/shared";
+import { clampIssueRequestDepth, extractAgentMentionIds, extractProjectMentionIds, isUuidLike } from "@stapler/shared";
+import { conflict, notFound, unprocessable } from "../errors.js";
 import {
   defaultIssueExecutionWorkspaceSettingsForProject,
   gateProjectExecutionWorkspacePolicy,
@@ -64,7 +52,7 @@ import { mergeExecutionWorkspaceConfig } from "./execution-workspaces.js";
 import { buildInitialIssueMonitorFields, normalizeIssueExecutionPolicy } from "./issue-execution-policy.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { redactCurrentUserText } from "../log-redaction.js";
-import { redactSensitiveText } from "../redaction.js";
+import { stampAdapterModel } from "./adapter-comment-stamp.js";
 import { resolveIssueGoalId, resolveNextIssueGoalId } from "./issue-goal-fallback.js";
 import { getRunLogStore } from "./run-log-store.js";
 import { getDefaultCompanyGoal } from "./goals.js";
@@ -1641,6 +1629,7 @@ const issueListSelect = {
   startedAt: issues.startedAt,
   completedAt: issues.completedAt,
   cancelledAt: issues.cancelledAt,
+  scheduledFor: issues.scheduledFor,
   hiddenAt: issues.hiddenAt,
   createdAt: issues.createdAt,
   updatedAt: issues.updatedAt,
@@ -5018,13 +5007,14 @@ export function issueService(db: Db) {
       },
     ) => {
       const order = opts?.order === "asc" ? "asc" : "desc";
-      const afterCommentId = opts?.afterCommentId?.trim() || null;
+      const afterCommentId =
+        opts?.afterCommentId != null ? String(opts.afterCommentId).trim() || null : null;
       const limit =
         opts?.limit && opts.limit > 0
           ? Math.min(Math.floor(opts.limit), MAX_ISSUE_COMMENT_PAGE_LIMIT)
           : null;
 
-      const conditions = [eq(issueComments.issueId, issueId)];
+      const conditions: (SQL | undefined)[] = [eq(issueComments.issueId, issueId)];
       if (afterCommentId) {
         const anchor = await db
           .select({
@@ -5036,17 +5026,17 @@ export function issueService(db: Db) {
           .then((rows) => rows[0] ?? null);
 
         if (!anchor) return [];
-        conditions.push(
-          order === "asc"
-            ? or(
-                gt(issueComments.createdAt, anchor.createdAt),
-                and(eq(issueComments.createdAt, anchor.createdAt), gt(issueComments.id, anchor.id)),
-              )!
-            : or(
-                lt(issueComments.createdAt, anchor.createdAt),
-                and(eq(issueComments.createdAt, anchor.createdAt), lt(issueComments.id, anchor.id)),
-              )!,
-        );
+        const anchorId = String(anchor.id);
+        const cursorCondition = order === "asc"
+          ? or(
+              gt(issueComments.createdAt, anchor.createdAt),
+              and(eq(issueComments.createdAt, anchor.createdAt), gt(issueComments.id, anchorId)),
+            )
+          : or(
+              lt(issueComments.createdAt, anchor.createdAt),
+              and(eq(issueComments.createdAt, anchor.createdAt), lt(issueComments.id, anchorId)),
+            );
+        if (cursorCondition) conditions.push(cursorCondition);
       }
 
       const query = db
@@ -5145,17 +5135,25 @@ export function issueService(db: Db) {
 
       if (!issue) throw notFound("Issue not found");
 
+      // SOP-914: Stamp adapter+model from agent config on every agent comment.
+      let stampedBody = body;
+      if (actor.agentId) {
+        const agentRow = await db
+          .select({ adapterType: agents.adapterType, adapterConfig: agents.adapterConfig })
+          .from(agents)
+          .where(eq(agents.id, actor.agentId))
+          .then((rows) => rows[0] ?? null);
+        if (agentRow) {
+          const config = agentRow.adapterConfig as Record<string, unknown> | null;
+          const model = typeof config?.model === "string" ? config.model : null;
+          stampedBody = stampAdapterModel(body, agentRow.adapterType, model);
+        }
+      }
+
       const currentUserRedactionOptions = {
         enabled: (await instanceSettings.getGeneral()).censorUsernameInLogs,
       };
-      const redactedBody = redactCurrentUserText(body, currentUserRedactionOptions);
-      const authorType = issueCommentAuthorTypeSchema.parse(
-        options?.authorType ?? (actor.agentId ? "agent" : actor.userId ? "user" : "system"),
-      );
-      assertIssueCommentAuthorTypeAllowed(actor, authorType);
-      const presentation = issueCommentPresentationSchema.nullable().parse(options?.presentation ?? null);
-      const metadata = issueCommentMetadataSchema.nullable().parse(options?.metadata ?? null);
-      const createdAt = options?.createdAt ? new Date(options.createdAt) : null;
+      const redactedBody = redactCurrentUserText(stampedBody, currentUserRedactionOptions);
       const [comment] = await db
         .insert(issueComments)
         .values({
@@ -5172,11 +5170,21 @@ export function issueService(db: Db) {
         })
         .returning();
 
+      const now = new Date();
       // Update issue's updatedAt so comment activity is reflected in recency sorting
       await db
         .update(issues)
-        .set({ updatedAt: new Date() })
+        .set({ updatedAt: now })
         .where(eq(issues.id, issueId));
+
+      // Liveness signal: an authoring run proves agent is alive even with zero
+      // stdout chunks. recovery/service.ts detector reads lastLivenessAt.
+      if (actor.runId) {
+        await db
+          .update(heartbeatRuns)
+          .set({ lastLivenessAt: now, updatedAt: now })
+          .where(eq(heartbeatRuns.id, actor.runId));
+      }
 
       return redactIssueComment(comment, currentUserRedactionOptions.enabled);
     },

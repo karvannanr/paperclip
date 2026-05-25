@@ -44,7 +44,8 @@ Current runtime assumptions:
 Use `paperclipai plugin init`. Do not invoke the scaffold package node entrypoint by hand unless the CLI command is unavailable in the environment.
 
 ```bash
-paperclipai plugin init @acme/my-plugin --output ~/dev/paperclip-plugins
+pnpm --filter @stapler/create-paperclip-plugin build
+node packages/plugins/create-paperclip-plugin/dist/index.js <npm-package-name> --output <target-dir>
 ```
 
 Useful flags (all optional):
@@ -60,9 +61,9 @@ On success the command prints the exact next commands (`cd`, `pnpm install`, `pn
 If `paperclipai` is not on PATH in your environment, fall back to:
 
 ```bash
-pnpm --filter @paperclipai/create-paperclip-plugin build
-node packages/plugins/create-paperclip-plugin/dist/index.js @acme/my-plugin \
-  --output /absolute/path \
+pnpm --filter @stapler/create-paperclip-plugin build
+node packages/plugins/create-paperclip-plugin/dist/index.js @acme/plugin-name \
+  --output /absolute/path/to/plugin-repos \
   --sdk-path /absolute/path/to/paperclip/packages/plugins/sdk
 ```
 

@@ -1,4 +1,4 @@
-import type { AdapterModelProfileDefinition } from "@paperclipai/adapter-utils";
+import type { AdapterModelProfileDefinition } from "@stapler/adapter-utils";
 
 export const type = "claude_local";
 export const label = "Claude Code (local)";
@@ -51,5 +51,5 @@ Operational fields:
 - graceSec (number, optional): SIGTERM grace period in seconds
 
 Notes:
-- When Paperclip realizes a workspace/runtime for a run, it injects PAPERCLIP_WORKSPACE_* and PAPERCLIP_RUNTIME_* env vars for agent-side tooling.
+- When Paperclip realizes a workspace/runtime for a run, it injects STAPLER_WORKSPACE_* and STAPLER_RUNTIME_* env vars for agent-side tooling.
 `;

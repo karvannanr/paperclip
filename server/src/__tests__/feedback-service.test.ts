@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { writePaperclipSkillSyncPreference } from "@paperclipai/adapter-utils/server-utils";
+import { writePaperclipSkillSyncPreference } from "@stapler/adapter-utils/server-utils";
 import {
   agents,
   companies,
@@ -20,7 +20,7 @@ import {
   issueComments,
   issueDocuments,
   issues,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import { feedbackService } from "../services/feedback.ts";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.ts";
 
@@ -870,7 +870,7 @@ describe("feedbackService.saveIssueVote", () => {
       JSON.stringify([{ content: "Verify exported traces" }]),
       "utf8",
     );
-    vi.stubEnv("PAPERCLIP_OPENCODE_STORAGE_DIR", opencodeRoot);
+    vi.stubEnv("STAPLER_OPENCODE_STORAGE_DIR", opencodeRoot);
     const uploadTraceBundle = vi.fn().mockResolvedValue({ objectKey: "feedback-traces/test.json" });
     const flushingSvc = feedbackService(db, {
       shareClient: {

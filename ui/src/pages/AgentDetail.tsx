@@ -27,7 +27,7 @@ import { PageTabBar } from "../components/PageTabBar";
 import { adapterLabels, roleLabels, help } from "../components/agent-config-primitives";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { useAdapterCapabilities } from "@/adapters/use-adapter-capabilities";
-import { redactCommandText as redactCommandSecretText } from "@paperclipai/adapter-utils";
+import { redactCommandText as redactCommandSecretText } from "@stapler/adapter-utils";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { assetsApi } from "../api/assets";
 import { getUIAdapter, buildTranscript, onAdapterChange } from "../adapters";
@@ -85,6 +85,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { AgentIcon, AgentIconPicker } from "../components/AgentIconPicker";
 import { RunTranscriptView, type TranscriptMode } from "../components/transcript/RunTranscriptView";
+import { RunScoreBadge } from "../components/RunScoreBadge";
+import { qualityApi } from "../api/quality";
 import {
   isUuidLike,
   type Agent,
@@ -99,8 +101,8 @@ import {
   type AgentRuntimeState,
   type LiveEvent,
   type WorkspaceOperation,
-} from "@paperclipai/shared";
-import { redactHomePathUserSegments, redactHomePathUserSegmentsInValue } from "@paperclipai/adapter-utils";
+} from "@stapler/shared";
+import { redactHomePathUserSegments, redactHomePathUserSegmentsInValue } from "@stapler/adapter-utils";
 import { agentRouteRef } from "../lib/utils";
 import {
   applyAgentSkillSnapshot,
@@ -151,7 +153,7 @@ const RUN_LOG_PAGE_BYTES = 256_000;
 const REDACTED_ENV_VALUE = "***REDACTED***";
 const SECRET_ENV_KEY_RE =
   /(api[-_]?key|access[-_]?token|auth(?:_?token)?|authorization|bearer|secret|passwd|password|credential|jwt|private[-_]?key|cookie|connectionstring)/i;
-const COMMAND_ENV_KEY_RE = /(^command$|^cmd$|command[-_]?line|resolved[-_]?command|PAPERCLIP_RESOLVED_COMMAND)/i;
+const COMMAND_ENV_KEY_RE = /(^command$|^cmd$|command[-_]?line|resolved[-_]?command|STAPLER_RESOLVED_COMMAND)/i;
 const JWT_VALUE_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)?$/;
 
 function redactPathText(value: string, censorUsernameInLogs: boolean) {
@@ -3151,6 +3153,30 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
       queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId, run.agentId) });
     },
   });
+
+  const approveRun = useMutation({
+    mutationFn: () => heartbeatsApi.approve(run.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.runDetail(run.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId, run.agentId) });
+    },
+  });
+
+  const rejectRun = useMutation({
+    mutationFn: () => heartbeatsApi.reject(run.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.runDetail(run.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId, run.agentId) });
+    },
+  });
+
+  const { data: runScore } = useQuery({
+    queryKey: ["runs", run.id, "score"],
+    queryFn: () => qualityApi.runScore(run.id),
+    enabled: run.status === "succeeded" || run.status === "needs_review" || run.status === "failed",
+    retry: false,
+  });
+
   const canResumeLostRun = run.errorCode === "process_lost" && run.status === "failed";
   const resumePayload = useMemo(() => {
     const payload: Record<string, unknown> = {
@@ -3285,8 +3311,11 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
         <div className="flex flex-col sm:flex-row">
           {/* Left column: status + timing */}
           <div className="flex-1 p-4 space-y-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <StatusBadge status={run.status} />
+              {runScore && (
+                <RunScoreBadge score={runScore.score} reasoning={runScore.reasoning ?? undefined} />
+              )}
               {(run.status === "running" || run.status === "queued") && (
                 <Button
                   variant="ghost"
@@ -3297,6 +3326,28 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
                 >
                   {cancelRun.isPending ? "Cancelling…" : "Cancel"}
                 </Button>
+              )}
+              {run.status === "needs_review" && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 text-xs h-6 px-2"
+                    onClick={() => approveRun.mutate()}
+                    disabled={approveRun.isPending || rejectRun.isPending}
+                  >
+                    {approveRun.isPending ? "Approving…" : "✓ Approve"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive text-xs h-6 px-2"
+                    onClick={() => rejectRun.mutate()}
+                    disabled={approveRun.isPending || rejectRun.isPending}
+                  >
+                    {rejectRun.isPending ? "Rejecting…" : "✕ Reject"}
+                  </Button>
+                </>
               )}
               {canResumeLostRun && (
                 <Button

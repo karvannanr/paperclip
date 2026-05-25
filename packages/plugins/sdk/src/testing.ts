@@ -20,7 +20,7 @@ import type {
   IssueDocument,
   Agent,
   Goal,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import type {
   EventFilter,
   PluginContext,
@@ -678,6 +678,28 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
       async get() {
         return { ...currentConfig };
       },
+      runtime: (() => {
+        const runtimeStore: Record<string, unknown> = {};
+        let revision = 0n;
+        return {
+          async get() {
+            requireCapability(manifest, capabilitySet, "plugin.config.write");
+            return { values: { ...runtimeStore }, revision: String(revision) };
+          },
+          async set(patch: Record<string, unknown>) {
+            requireCapability(manifest, capabilitySet, "plugin.config.write");
+            Object.assign(runtimeStore, patch);
+            revision += 1n;
+            return { revision: String(revision) };
+          },
+          async unset(key: string) {
+            requireCapability(manifest, capabilitySet, "plugin.config.write");
+            delete runtimeStore[key];
+            revision += 1n;
+            return { revision: String(revision) };
+          },
+        };
+      })(),
     },
     localFolders: {
       declarations() {
@@ -849,6 +871,13 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
       async resolve(secretRef) {
         requireCapability(manifest, capabilitySet, "secrets.read-ref");
         return `resolved:${secretRef}`;
+      },
+      async write(input) {
+        requireCapability(manifest, capabilitySet, "secrets.write");
+        return `mock-secret-id:${input.name}`;
+      },
+      async delete(_input) {
+        requireCapability(manifest, capabilitySet, "secrets.write");
       },
     },
     activity: {
@@ -1531,6 +1560,7 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
           completedAt: null,
           cancelledAt: null,
           hiddenAt: null,
+          scheduledFor: null,
           createdAt: now,
           updatedAt: now,
         };
@@ -1828,6 +1858,21 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
           };
         },
       },
+      customFields: {
+        async set(params) {
+          requireCapability(manifest, capabilitySet, "issue.custom-fields.write");
+          void params;
+        },
+        async unset(params) {
+          requireCapability(manifest, capabilitySet, "issue.custom-fields.write");
+          void params;
+        },
+        async listForIssue(params) {
+          requireCapability(manifest, capabilitySet, "issue.custom-fields.read");
+          void params;
+          return [];
+        },
+      },
     },
     agents: {
       async list(input) {
@@ -2061,6 +2106,12 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
           status: input.status ?? "planned",
           parentId: input.parentId ?? null,
           ownerAgentId: input.ownerAgentId ?? null,
+          acceptanceCriteria: [],
+          targetDate: null,
+          verificationStatus: "not_started",
+          verificationAttempts: 0,
+          verifiedAt: null,
+          verificationIssueId: null,
           createdAt: now,
           updatedAt: now,
         };

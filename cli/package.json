@@ -1,13 +1,13 @@
 {
-  "name": "paperclipai",
+  "name": "@googlarz/stapler",
   "version": "0.3.1",
-  "description": "Paperclip CLI — orchestrate AI agent teams to run a business",
+  "description": "Stapler CLI — orchestrate AI agent teams to run a business",
   "type": "module",
   "bin": {
-    "paperclipai": "./dist/index.js"
+    "stapler": "./dist/index.js"
   },
   "keywords": [
-    "paperclip",
+    "stapler",
     "ai",
     "agents",
     "orchestration",
@@ -16,12 +16,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/paperclipai/paperclip",
+    "url": "https://github.com/googlarz/stapler",
     "directory": "cli"
   },
-  "homepage": "https://github.com/paperclipai/paperclip",
+  "homepage": "https://github.com/googlarz/stapler",
   "bugs": {
-    "url": "https://github.com/paperclipai/paperclip/issues"
+    "url": "https://github.com/googlarz/stapler/issues"
   },
   "files": [
     "dist"
@@ -37,21 +37,20 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.10.0",
-    "@paperclipai/adapter-acpx-local": "workspace:*",
-    "@paperclipai/adapter-claude-local": "workspace:*",
-    "@paperclipai/adapter-codex-local": "workspace:*",
-    "@paperclipai/adapter-cursor-cloud": "workspace:*",
-    "@paperclipai/adapter-cursor-local": "workspace:*",
-    "@paperclipai/adapter-gemini-local": "workspace:*",
-    "@paperclipai/adapter-grok-local": "workspace:*",
-    "@paperclipai/adapter-opencode-local": "workspace:*",
-    "@paperclipai/adapter-pi-local": "workspace:*",
-    "@paperclipai/adapter-openclaw-gateway": "workspace:*",
-    "@paperclipai/adapter-utils": "workspace:*",
-    "@paperclipai/db": "workspace:*",
-    "@paperclipai/server": "workspace:*",
-    "@paperclipai/shared": "workspace:*",
-    "drizzle-orm": "0.45.2",
+    "@stapler/adapter-acpx-local": "workspace:*",
+    "@stapler/adapter-claude-local": "workspace:*",
+    "@stapler/adapter-codex-local": "workspace:*",
+    "@stapler/adapter-cursor-local": "workspace:*",
+    "@stapler/adapter-gemini-local": "workspace:*",
+    "@stapler/adapter-opencode-local": "workspace:*",
+    "@stapler/adapter-ollama-local": "workspace:*",
+    "@stapler/adapter-pi-local": "workspace:*",
+    "@stapler/adapter-openclaw-gateway": "workspace:*",
+    "@stapler/adapter-utils": "workspace:*",
+    "@stapler/db": "workspace:*",
+    "@stapler/server": "workspace:*",
+    "@stapler/shared": "workspace:*",
+    "drizzle-orm": "0.38.4",
     "dotenv": "^17.0.1",
     "commander": "^13.1.0",
     "embedded-postgres": "^18.1.0-beta.16",

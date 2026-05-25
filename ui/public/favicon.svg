@@ -1,9 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <style>
-    path { stroke: #18181b; }
+    .body  { stroke: #18181b; fill: #ffffff; stroke-width: 26; stroke-linejoin: round; }
+    .inner { stroke: #18181b; fill: none; stroke-width: 24; stroke-linecap: round; }
     @media (prefers-color-scheme: dark) {
-      path { stroke: #e4e4e7; }
+      .body  { stroke: #e4e4e7; fill: #18181b; }
+      .inner { stroke: #e4e4e7; }
     }
   </style>
-  <path stroke-width="2" d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/>
+  <path class="body" d="M24 388 L24 432 Q24 458 54 458 L462 458 Q494 458 494 434 L478 388 Z"/>
+  <path class="body" d="M46 292 L46 138 Q46 66 140 66 L428 66 Q490 66 490 130 L490 292 Z"/>
+  <line class="inner" x1="148" y1="108" x2="466" y2="108"/>
+  <line class="inner" x1="140" y1="292" x2="468" y2="262"/>
+  <circle class="body" cx="72" cy="338" r="54"/>
+  <circle class="body" cx="72" cy="338" r="22"/>
 </svg>

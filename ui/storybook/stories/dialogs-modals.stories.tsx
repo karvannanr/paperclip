@@ -5,7 +5,7 @@ import type {
   ExecutionWorkspaceCloseReadiness,
   Goal,
   IssueAttachment,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { DocumentDiffModal } from "@/components/DocumentDiffModal";
@@ -19,7 +19,7 @@ import { PathInstructionsModal } from "@/components/PathInstructionsModal";
 import { useCompany } from "@/context/CompanyContext";
 import { useDialog } from "@/context/DialogContext";
 import { queryKeys } from "@/lib/queryKeys";
-import type { Agent } from "@paperclipai/shared";
+import type { Agent } from "@stapler/shared";
 import {
   storybookAgents,
   storybookAuthSession,
@@ -45,6 +45,12 @@ const storybookGoals: Goal[] = [
     status: "active",
     parentId: null,
     ownerAgentId: "agent-cto",
+    acceptanceCriteria: [],
+    targetDate: null,
+    verificationStatus: "not_started",
+    verificationAttempts: 0,
+    verifiedAt: null,
+    verificationIssueId: null,
     createdAt: new Date("2026-04-01T09:00:00.000Z"),
     updatedAt: new Date("2026-04-20T11:00:00.000Z"),
   },
@@ -57,6 +63,12 @@ const storybookGoals: Goal[] = [
     status: "active",
     parentId: "goal-company",
     ownerAgentId: "agent-codex",
+    acceptanceCriteria: [],
+    targetDate: null,
+    verificationStatus: "not_started",
+    verificationAttempts: 0,
+    verifiedAt: null,
+    verificationIssueId: null,
     createdAt: new Date("2026-04-17T09:00:00.000Z"),
     updatedAt: new Date("2026-04-20T11:10:00.000Z"),
   },
@@ -69,6 +81,12 @@ const storybookGoals: Goal[] = [
     status: "planned",
     parentId: "goal-company",
     ownerAgentId: "agent-cto",
+    acceptanceCriteria: [],
+    targetDate: null,
+    verificationStatus: "not_started",
+    verificationAttempts: 0,
+    verifiedAt: null,
+    verificationIssueId: null,
     createdAt: new Date("2026-04-18T09:00:00.000Z"),
     updatedAt: new Date("2026-04-20T11:15:00.000Z"),
   },

@@ -62,7 +62,7 @@ const mockAdapter = vi.hoisted(() => ({
   syncSkills: vi.fn(),
 }));
 
-vi.mock("@paperclipai/shared/telemetry", () => ({
+vi.mock("@stapler/shared/telemetry", () => ({
   trackAgentCreated: mockTrackAgentCreated,
   trackErrorHandlerCrash: vi.fn(),
 }));
@@ -96,7 +96,7 @@ vi.mock("../adapters/index.js", () => ({
 }));
 
 function registerModuleMocks() {
-  vi.doMock("@paperclipai/shared/telemetry", () => ({
+  vi.doMock("@stapler/shared/telemetry", () => ({
     trackAgentCreated: mockTrackAgentCreated,
     trackErrorHandlerCrash: vi.fn(),
   }));

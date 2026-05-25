@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@/lib/router";
-import type { Issue, ExecutionWorkspace } from "@paperclipai/shared";
+import type { Issue, ExecutionWorkspace } from "@stapler/shared";
 import { useQuery } from "@tanstack/react-query";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { environmentsApi } from "../api/environments";
@@ -9,6 +9,7 @@ import { useCompany } from "../context/CompanyContext";
 import { queryKeys } from "../lib/queryKeys";
 import { orderReusableExecutionWorkspaces } from "../lib/reusable-execution-workspaces";
 import { cn, projectWorkspaceUrl } from "../lib/utils";
+import { copyTextToClipboard } from "../lib/clipboard";
 import { Button } from "@/components/ui/button";
 import { Check, Copy, GitBranch, FolderOpen, Pencil, X } from "lucide-react";
 
@@ -70,7 +71,7 @@ function CopyableInline({ value, label, mono }: { value: string; label?: string;
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(value);
+      await copyTextToClipboard(value);
       setCopied(true);
       clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setCopied(false), 1500);

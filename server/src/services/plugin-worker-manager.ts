@@ -22,7 +22,7 @@ import { fork, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
-import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import type { PaperclipPluginManifestV1 } from "@stapler/shared";
 import {
   JSONRPC_VERSION,
   JSONRPC_ERROR_CODES,
@@ -37,7 +37,7 @@ import {
   isJsonRpcSuccessResponse,
   JsonRpcParseError,
   JsonRpcCallError,
-} from "@paperclipai/plugin-sdk";
+} from "@stapler/plugin-sdk";
 import type {
   JsonRpcId,
   PluginInvocationContext,
@@ -51,7 +51,7 @@ import type {
   WorkerToHostMethodName,
   WorkerToHostMethods,
   InitializeParams,
-} from "@paperclipai/plugin-sdk";
+} from "@stapler/plugin-sdk";
 import { logger } from "../middleware/logger.js";
 
 // ---------------------------------------------------------------------------
@@ -722,9 +722,11 @@ export function createPluginWorkerHandle(
       ...options.env,
       PATH: process.env.PATH ?? "",
       NODE_PATH: process.env.NODE_PATH ?? "",
-      PAPERCLIP_PLUGIN_ID: pluginId,
+      STAPLER_PLUGIN_ID: pluginId,
       NODE_ENV: process.env.NODE_ENV ?? "production",
       TZ: process.env.TZ ?? "UTC",
+      // Disable io_uring to prevent D-state zombie processes on Linux kernel 6.8.
+      UV_USE_IO_URING: "0",
     };
 
     const child = fork(options.entrypointPath, [], {

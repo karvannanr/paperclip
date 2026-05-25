@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Company } from "@paperclipai/shared";
+import type { Company } from "@stapler/shared";
 import { assertDeleteConfirmation, resolveCompanyForDeletion } from "../commands/client/company.js";
 
 function makeCompany(overrides: Partial<Company>): Company {
@@ -21,6 +21,7 @@ function makeCompany(overrides: Partial<Company>): Company {
     feedbackDataSharingConsentByUserId: null,
     feedbackDataSharingTermsVersion: null,
     brandColor: null,
+    defaultModel: null,
     logoAssetId: null,
     logoUrl: null,
     createdAt: new Date(),

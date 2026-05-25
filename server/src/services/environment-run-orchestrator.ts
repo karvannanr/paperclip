@@ -15,7 +15,7 @@
  * and transport logic.
  */
 
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import type {
   Environment,
   EnvironmentLease,
@@ -23,7 +23,7 @@ import type {
   EnvironmentLeaseStatus,
   ExecutionWorkspace,
   ExecutionWorkspaceConfig,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { environmentService } from "./environments.js";
 import {
   environmentRuntimeService,
@@ -39,7 +39,7 @@ import {
   adapterExecutionTargetToRemoteSpec,
   type AdapterExecutionTarget,
   type AdapterRemoteExecutionSpec,
-} from "@paperclipai/adapter-utils/execution-target";
+} from "@stapler/adapter-utils/execution-target";
 import { buildWorkspaceRealizationRequest } from "./workspace-realization.js";
 import { executionWorkspaceService } from "./execution-workspaces.js";
 import { logActivity } from "./activity-log.js";
@@ -559,6 +559,47 @@ export function environmentRunOrchestrator(
     return result;
   }
 
+  async function releaseForIssue(input: {
+    issueId: string;
+    companyId: string;
+  }): Promise<EnvironmentReleaseResult> {
+    const result: EnvironmentReleaseResult = { released: [], errors: [] };
+    let releasedLeases: EnvironmentRuntimeLeaseRecord[];
+    try {
+      releasedLeases = await environmentRuntime.releaseIssueLeases(input.issueId, "released");
+    } catch (err) {
+      result.errors.push({ leaseId: "*", error: err });
+      return result;
+    }
+    for (const released of releasedLeases) {
+      try {
+        await logActivity(db, {
+          companyId: input.companyId,
+          actorType: "system",
+          actorId: "system",
+          action: "environment.lease_released",
+          entityType: "environment_lease",
+          entityId: released.lease.id,
+          details: {
+            environmentId: released.lease.environmentId,
+            driver: released.environment.driver,
+            leasePolicy: released.lease.leasePolicy,
+            provider: released.lease.provider,
+            executionWorkspaceId: released.lease.executionWorkspaceId,
+            issueId: released.lease.issueId,
+            status: released.lease.status,
+            cleanupStatus: released.lease.cleanupStatus,
+            reason: "issue_terminal_status",
+          },
+        });
+      } catch {
+        // Activity logging failure should not block lease release
+      }
+      result.released.push(released);
+    }
+    return result;
+  }
+
   return {
     resolveEnvironment,
     acquireLease,
@@ -566,6 +607,7 @@ export function environmentRunOrchestrator(
     acquireForRun,
     realizeForRun,
     releaseForRun,
+    releaseForIssue,
 
     // Expose the underlying runtime for cases that need direct driver access
     runtime: environmentRuntime,

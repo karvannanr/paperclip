@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { and, desc, eq, gte } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import {
   agents,
   companies,
@@ -33,18 +33,19 @@ import {
   pluginLogs,
   pluginWebhookDeliveries,
   projects,
-} from "@paperclipai/db";
+} from "@stapler/db";
 import type {
   PluginApiRouteDeclaration,
   PluginStatus,
   PaperclipPluginManifestV1,
   PluginBridgeErrorCode,
   PluginLauncherRenderContextSnapshot,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import {
   PLUGIN_STATUSES,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { pluginRegistryService } from "../services/plugin-registry.js";
+import { createPluginRuntimeConfigService } from "../services/plugin-runtime-config.js";
 import { pluginLifecycleManager } from "../services/plugin-lifecycle.js";
 import { getPluginUiContributionMetadata, pluginLoader } from "../services/plugin-loader.js";
 import { logActivity } from "../services/activity-log.js";
@@ -55,8 +56,8 @@ import type { PluginJobStore } from "../services/plugin-job-store.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import type { PluginStreamBus } from "../services/plugin-stream-bus.js";
 import type { PluginToolDispatcher } from "../services/plugin-tool-dispatcher.js";
-import type { PluginPerformActionActorContext, ToolRunContext } from "@paperclipai/plugin-sdk";
-import { JsonRpcCallError, PLUGIN_RPC_ERROR_CODES } from "@paperclipai/plugin-sdk";
+import type { ToolRunContext } from "@stapler/plugin-sdk";
+import { JsonRpcCallError, PLUGIN_RPC_ERROR_CODES } from "@stapler/plugin-sdk";
 import {
   assertAuthenticated,
   assertBoard,
@@ -153,15 +154,7 @@ const REPO_ROOT = path.resolve(__dirname, "../../..");
 
 const BUNDLED_PLUGIN_EXAMPLES: AvailablePluginExample[] = [
   {
-    packageName: "@paperclipai/plugin-workspace-diff",
-    pluginKey: "paperclip.workspace-diff",
-    displayName: "Workspace Changes",
-    description: "First-party workspace Changes tab backed by plugin-local Git diff computation.",
-    localPath: "packages/plugins/plugin-workspace-diff",
-    tag: "first-party",
-  },
-  {
-    packageName: "@paperclipai/plugin-hello-world-example",
+    packageName: "@stapler/plugin-hello-world-example",
     pluginKey: "paperclip.hello-world-example",
     displayName: "Hello World Widget (Example)",
     description: "Reference UI plugin that adds a simple Hello World widget to the Paperclip dashboard.",
@@ -169,7 +162,7 @@ const BUNDLED_PLUGIN_EXAMPLES: AvailablePluginExample[] = [
     tag: "example",
   },
   {
-    packageName: "@paperclipai/plugin-file-browser-example",
+    packageName: "@stapler/plugin-file-browser-example",
     pluginKey: "paperclip-file-browser-example",
     displayName: "File Browser (Example)",
     description: "Example plugin that adds a Files link in project navigation plus a project detail file browser.",
@@ -177,7 +170,7 @@ const BUNDLED_PLUGIN_EXAMPLES: AvailablePluginExample[] = [
     tag: "example",
   },
   {
-    packageName: "@paperclipai/plugin-kitchen-sink-example",
+    packageName: "@stapler/plugin-kitchen-sink-example",
     pluginKey: "paperclip-kitchen-sink-example",
     displayName: "Kitchen Sink (Example)",
     description: "Reference plugin that demonstrates the current Paperclip plugin API surface, bridge flows, UI extension surfaces, jobs, webhooks, tools, streams, and trusted local workspace/process demos.",
@@ -185,7 +178,7 @@ const BUNDLED_PLUGIN_EXAMPLES: AvailablePluginExample[] = [
     tag: "example",
   },
   {
-    packageName: "@paperclipai/plugin-orchestration-smoke-example",
+    packageName: "@stapler/plugin-orchestration-smoke-example",
     pluginKey: "paperclipai.plugin-orchestration-smoke-example",
     displayName: "Orchestration Smoke (Example)",
     description: "Acceptance fixture for scoped plugin routes, restricted database namespaces, issue orchestration, documents, wakeups, summaries, and UI status surfaces.",
@@ -769,13 +762,19 @@ export function pluginRoutes(
    * Errors: 501 if tool dispatcher is not configured
    */
   router.get("/plugins/tools", async (req, res) => {
-    assertBoardOrgAccess(req);
+    assertAuthenticated(req);
 
     if (!toolDeps) {
       res.status(501).json({ error: "Plugin tool dispatch is not enabled" });
       return;
     }
 
+    // Plugin tools are instance-global by design: installation is gated by
+    // assertInstanceAdmin, so the registry is shared across all companies on
+    // the instance. Any authenticated actor (board or agent) sees the same
+    // tool list. Per-company isolation lives on the execute path via
+    // assertCompanyAccess + validateToolRunContextScope. If per-company plugin
+    // registration is ever added, this route must add a companyId filter.
     const pluginId = req.query.pluginId as string | undefined;
     const filter = pluginId ? { pluginId } : undefined;
     const tools = toolDeps.toolDispatcher.listToolsForAgent(filter);
@@ -803,7 +802,7 @@ export function pluginRoutes(
    * - 502 if the plugin worker is unavailable or the RPC call fails
    */
   router.post("/plugins/tools/execute", async (req, res) => {
-    assertBoardOrgAccess(req);
+    assertAuthenticated(req);
 
     if (!toolDeps) {
       res.status(501).json({ error: "Plugin tool dispatch is not enabled" });
@@ -2848,6 +2847,50 @@ export function pluginRoutes(
       health,
       checkedAt: new Date().toISOString(),
     });
+  });
+
+  // ===========================================================================
+  // Runtime config routes (operator inspect / clear)
+  // ===========================================================================
+
+  /**
+   * GET /api/plugins/:pluginId/runtime-config
+   *
+   * Returns the current plugin-managed runtime configuration and revision.
+   * Accessible to any board member (read-only inspect).
+   */
+  router.get("/plugins/:pluginId/runtime-config", async (req, res) => {
+    assertBoardOrgAccess(req);
+    const { pluginId } = req.params as { pluginId: string };
+    const registry = pluginRegistryService(db);
+    const plugin = await registry.getById(pluginId);
+    if (!plugin) throw notFound("Plugin not found");
+
+    const svc = createPluginRuntimeConfigService(db);
+    const result = await svc.getRuntime(pluginId);
+    res.json(result);
+  });
+
+  /**
+   * DELETE /api/plugins/:pluginId/runtime-config
+   *
+   * Clears all plugin-managed runtime configuration for this plugin.
+   * Restricted to instance admins.
+   */
+  router.delete("/plugins/:pluginId/runtime-config", async (req, res) => {
+    assertInstanceAdmin(req);
+    const { pluginId } = req.params as { pluginId: string };
+    const registry = pluginRegistryService(db);
+    const plugin = await registry.getById(pluginId);
+    if (!plugin) throw notFound("Plugin not found");
+
+    const svc = createPluginRuntimeConfigService(db);
+    await svc.clearRuntime(pluginId);
+    await logPluginMutationActivity(req, "plugin.runtime-config.cleared", pluginId, {
+      pluginId: plugin.id,
+      pluginKey: plugin.pluginKey,
+    });
+    res.status(204).end();
   });
 
   return router;

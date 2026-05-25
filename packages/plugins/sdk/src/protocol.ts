@@ -38,10 +38,8 @@ import type {
   RoutineRun,
   Agent,
   Goal,
-  PluginLocalFolderDeclaration,
-  PrincipalPermissionGrant,
-} from "@paperclipai/shared";
-export type { PluginLauncherRenderContextSnapshot } from "@paperclipai/shared";
+} from "@stapler/shared";
+export type { PluginLauncherRenderContextSnapshot } from "@stapler/shared";
 
 import type {
   PluginEvent,
@@ -56,15 +54,7 @@ import type {
   PluginWorkspace,
   ToolRunContext,
   ToolResult,
-  PluginLocalFolderListing,
-  PluginLocalFolderStatus,
-  PluginAccessInvite,
-  PluginAccessMember,
-  PluginAssignmentPreviewInput,
-  PluginAuthorizationAuditEntry,
-  PluginAuthorizationDecisionResult,
-  PluginAuthorizationPolicyRecord,
-  PluginAuthorizationPolicySummary,
+  IssueCustomField,
 } from "./types.js";
 import type {
   PluginHealthDiagnostics,
@@ -671,50 +661,13 @@ export const HOST_TO_WORKER_OPTIONAL_METHODS: readonly HostToWorkerMethodName[] 
  * host to access platform services (state, entities, config, etc.).
  */
 export interface WorkerToHostMethods {
-  // Config
+  // Config (operator-provided, read-only to plugins)
   "config.get": [params: Record<string, never>, result: Record<string, unknown>];
 
-  // Trusted local folders
-  "localFolders.declarations": [
-    params: Record<string, never>,
-    result: PluginLocalFolderDeclaration[],
-  ];
-  "localFolders.configure": [
-    params: {
-      companyId: string;
-      folderKey: string;
-      path: string;
-      access?: "read" | "readWrite";
-      requiredDirectories?: string[];
-      requiredFiles?: string[];
-    },
-    result: PluginLocalFolderStatus,
-  ];
-  "localFolders.status": [
-    params: { companyId: string; folderKey: string },
-    result: PluginLocalFolderStatus,
-  ];
-  "localFolders.list": [
-    params: { companyId: string; folderKey: string; relativePath?: string | null; recursive?: boolean; maxEntries?: number },
-    result: PluginLocalFolderListing,
-  ];
-  "localFolders.readText": [
-    params: { companyId: string; folderKey: string; relativePath: string },
-    result: string,
-  ];
-  "localFolders.writeTextAtomic": [
-    params: {
-      companyId: string;
-      folderKey: string;
-      relativePath: string;
-      contents: string;
-    },
-    result: PluginLocalFolderStatus,
-  ];
-  "localFolders.deleteFile": [
-    params: { companyId: string; folderKey: string; relativePath: string },
-    result: PluginLocalFolderStatus,
-  ];
+  // Runtime config (plugin-managed mutable config, requires plugin.config.write capability)
+  "config.runtime.get": [params: Record<string, never>, result: { values: Record<string, unknown>; revision: string }];
+  "config.runtime.set": [params: { patch: Record<string, unknown> }, result: { revision: string }];
+  "config.runtime.unset": [params: { key: string }, result: { revision: string }];
 
   // State
   "state.get": [
@@ -811,6 +764,14 @@ export interface WorkerToHostMethods {
   "secrets.resolve": [
     params: { secretRef: string },
     result: string,
+  ];
+  "secrets.write": [
+    params: { companyId: string; name: string; value: string; description?: string },
+    result: string,
+  ];
+  "secrets.delete": [
+    params: { companyId: string; name: string },
+    result: undefined,
   ];
 
   // Activity
@@ -1139,6 +1100,20 @@ export interface WorkerToHostMethods {
   "issues.documents.delete": [
     params: { issueId: string; key: string; companyId: string },
     result: void,
+  ];
+
+  // Issue custom fields (WS-4)
+  "issues.customFields.set": [
+    params: { companyId: string; issueId: string; key: string; value: string },
+    result: void,
+  ];
+  "issues.customFields.unset": [
+    params: { companyId: string; issueId: string; key: string },
+    result: void,
+  ];
+  "issues.customFields.listForIssue": [
+    params: { companyId: string; issueId: string },
+    result: IssueCustomField[],
   ];
 
   // Agents (read)

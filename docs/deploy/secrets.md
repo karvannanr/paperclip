@@ -75,36 +75,35 @@ metadata is not enough to restore named secret versions.
 Onboarding writes default secrets config:
 
 ```sh
-pnpm paperclipai onboard
+pnpm stapler onboard
 ```
 
 Update secrets settings:
 
 ```sh
-pnpm paperclipai configure --section secrets
+pnpm stapler configure --section secrets
 ```
 
 Validate secrets config:
 
 ```sh
-pnpm paperclipai doctor
-pnpm paperclipai secrets doctor --company-id <company-id>
+pnpm stapler doctor
 ```
 
 ### Environment Overrides
 
 | Variable | Description |
 |----------|-------------|
-| `PAPERCLIP_SECRETS_MASTER_KEY` | 32-byte key as base64, hex, or raw string |
-| `PAPERCLIP_SECRETS_MASTER_KEY_FILE` | Custom key file path |
-| `PAPERCLIP_SECRETS_STRICT_MODE` | Set to `true` to enforce secret refs |
+| `STAPLER_SECRETS_MASTER_KEY` | 32-byte key as base64, hex, or raw string |
+| `STAPLER_SECRETS_MASTER_KEY_FILE` | Custom key file path |
+| `STAPLER_SECRETS_STRICT_MODE` | Set to `true` to enforce secret refs |
 
 ## Strict Mode
 
 When strict mode is enabled, sensitive env keys (matching `*_API_KEY`, `*_TOKEN`, `*_SECRET`) must use secret references instead of inline plain values.
 
 ```sh
-PAPERCLIP_SECRETS_STRICT_MODE=true
+STAPLER_SECRETS_STRICT_MODE=true
 ```
 
 Recommended for any deployment beyond local trusted.

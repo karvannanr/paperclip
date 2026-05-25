@@ -2,7 +2,7 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { issuesApi } from "@/api/issues";
@@ -50,6 +50,7 @@ function makeIssue(overrides: Partial<Issue> = {}): Issue {
     startedAt: null,
     completedAt: null,
     cancelledAt: null,
+    scheduledFor: null,
     hiddenAt: null,
     createdAt: now,
     updatedAt: now,

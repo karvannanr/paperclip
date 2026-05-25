@@ -3,6 +3,7 @@ import { Eye, EyeOff } from "lucide-react";
 import type { AdapterConfigFieldsProps } from "../types";
 import {
   Field,
+  ToggleField,
   DraftInput,
   help,
 } from "../../components/agent-config-primitives";
@@ -93,8 +94,31 @@ export function OpenClawGatewayConfigFields({
   const sessionStrategy = eff(
     "adapterConfig",
     "sessionKeyStrategy",
-    String(config.sessionKeyStrategy ?? "fixed"),
+    String(config.sessionKeyStrategy ?? "issue"),
   );
+  const issueBlockEscalation =
+    config.issueBlockEscalation && typeof config.issueBlockEscalation === "object" && !Array.isArray(config.issueBlockEscalation)
+      ? (config.issueBlockEscalation as Record<string, unknown>)
+      : {};
+  const effectiveIssueBlockEscalation =
+    (eff("adapterConfig", "issueBlockEscalation", issueBlockEscalation) as Record<string, unknown> | undefined) ?? {};
+  const issueBlockEscalationEnabled = Boolean(effectiveIssueBlockEscalation.enabled);
+
+  const setIssueBlockEscalation = (patch: Record<string, unknown>) => {
+    const current =
+      config.issueBlockEscalation && typeof config.issueBlockEscalation === "object" && !Array.isArray(config.issueBlockEscalation)
+        ? (config.issueBlockEscalation as Record<string, unknown>)
+        : {};
+    const next = {
+      ...current,
+      ...patch,
+    };
+    if (next.enabled !== true) {
+      mark("adapterConfig", "issueBlockEscalation", undefined);
+      return;
+    }
+    mark("adapterConfig", "issueBlockEscalation", next);
+  };
 
   return (
     <>
@@ -134,7 +158,7 @@ export function OpenClawGatewayConfigFields({
 
       {!isCreate && (
         <>
-          <Field label="Paperclip API URL override">
+          <Field label="Stapler API URL override">
             <DraftInput
               value={
                 eff(
@@ -234,9 +258,30 @@ export function OpenClawGatewayConfigFields({
             />
           </Field>
 
+          <ToggleField
+            label="Auto-escalate blocked issues"
+            hint="Explicit opt-in. When enabled, moving an issue to blocked auto-creates or reuses an escalation issue for the target role."
+            checked={issueBlockEscalationEnabled}
+            onChange={(enabled) =>
+              setIssueBlockEscalation(enabled ? { enabled: true, targetRole: "cto" } : { enabled: false })
+            }
+          />
+
+          {issueBlockEscalationEnabled && (
+            <Field label="Blocked issue escalation target role">
+              <DraftInput
+                value={String(effectiveIssueBlockEscalation.targetRole ?? issueBlockEscalation.targetRole ?? "cto")}
+                onCommit={(v) => setIssueBlockEscalation({ enabled: true, targetRole: v || "cto" })}
+                immediate
+                className={inputClass}
+                placeholder="cto"
+              />
+            </Field>
+          )}
+
           <Field label="Device auth">
             <div className="text-xs text-muted-foreground leading-relaxed">
-              Always enabled for gateway agents. Paperclip persists a device key during onboarding so pairing approvals
+              Always enabled for gateway agents. Stapler persists a device key during onboarding so pairing approvals
               remain stable across runs.
             </div>
           </Field>
