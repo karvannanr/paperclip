@@ -3,7 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IssueLinkQuicklook } from "./IssueLinkQuicklook";
@@ -58,6 +58,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     myLastTouchAt: null,
     lastExternalCommentAt: null,
     isUnreadForMe: false,
+    scheduledFor: null,
     workMode: "standard",
     ...overrides,
   };

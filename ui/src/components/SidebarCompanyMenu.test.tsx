@@ -18,6 +18,10 @@ const mockNavigate = vi.hoisted(() => vi.fn());
 const mockOpenOnboarding = vi.hoisted(() => vi.fn());
 const mockSetSelectedCompanyId = vi.hoisted(() => vi.fn());
 const mockSetSidebarOpen = vi.hoisted(() => vi.fn());
+const mockSidebarPreferencesApi = vi.hoisted(() => ({
+  get: vi.fn(),
+  set: vi.fn(),
+}));
 const mockLocation = vi.hoisted(() => ({ pathname: "/PAP/dashboard" }));
 
 vi.mock("@/api/auth", () => ({

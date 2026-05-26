@@ -9,6 +9,8 @@ import {
   secretProviderConfigDiscoveryPreviewSchema,
   updateSecretProviderConfigSchema,
   updateSecretSchema,
+  SECRET_PROVIDERS,
+  type SecretProvider,
 } from "@stapler/shared";
 import { validate } from "../middleware/validate.js";
 import { assertBoard, assertCompanyAccess } from "./authz.js";

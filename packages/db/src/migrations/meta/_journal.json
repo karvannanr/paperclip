@@ -715,6 +715,34 @@
       "when": 1777833600000,
       "tag": "0101_heartbeat_liveness",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1777920000000,
+      "tag": "0102_routine_env",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1778006400000,
+      "tag": "0103_missing_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1778092800000,
+      "tag": "0104_missing_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1778179200000,
+      "tag": "0105_company_secrets_columns",
+      "breakpoints": true
     }
   ]
 }

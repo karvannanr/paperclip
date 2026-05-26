@@ -484,10 +484,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   if (runtimePrimaryUrl) {
     env.STAPLER_RUNTIME_PRIMARY_URL = runtimePrimaryUrl;
   }
-  const targetPaperclipApiUrl = adapterExecutionTargetPaperclipApiUrl(executionTarget);
-  if (targetPaperclipApiUrl) {
-    env.STAPLER_API_URL = targetPaperclipApiUrl;
-  }
   for (const [k, v] of Object.entries(envConfig)) {
     if (typeof v === "string") env[k] = v;
   }
@@ -540,8 +536,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
   // Wall-clock cap. Default 30min so a wedged child cannot hang a heartbeat
   // forever. Operators can opt out by setting `timeoutSec: 0` in adapter config.
-  const timeoutSec = asNumber(config.timeoutSec, 1800);
-  const graceSec = asNumber(config.graceSec, 20);
+  const executionTimeoutSec = asNumber(config.timeoutSec, 1800);
+  const executionGraceSec = asNumber(config.graceSec, 20);
   // Idle watchdog: terminate the child if no stdout/stderr arrives within
   // this window. Default 5min so genuinely silent hangs (no JSONL events)
   // surface as a timeout instead of accumulating wall-clock time.
@@ -730,8 +726,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       cwd,
       env,
       stdin: prompt,
-      timeoutSec,
-      graceSec,
+      timeoutSec: executionTimeoutSec,
+      graceSec: executionGraceSec,
       idleTimeoutSec,
       onSpawn,
       onLog: async (stream, chunk) => {
@@ -776,7 +772,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       const errorCode = isIdle ? "codex_idle_timeout" : "codex_wall_timeout";
       const errorMessage = isIdle
         ? `Timed out after ${idleTimeoutSec}s of no output (idle watchdog)`
-        : `Timed out after ${timeoutSec}s wall-clock`;
+        : `Timed out after ${executionTimeoutSec}s wall-clock`;
       return {
         exitCode: attempt.proc.exitCode,
         signal: attempt.proc.signal,
@@ -785,7 +781,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         errorMessage,
         errorMeta: {
           timeoutReason: isIdle ? "idle" : "wall",
-          timeoutSec,
+          timeoutSec: executionTimeoutSec,
           idleTimeoutSec,
         },
         clearSession: clearSessionOnMissingSession,

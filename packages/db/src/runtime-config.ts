@@ -1,11 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
-  expandHomePrefix,
-  resolveDefaultEmbeddedPostgresDir,
   resolvePaperclipConfigPathForInstance,
   resolvePaperclipEnvPathForConfig,
-} from "@paperclipai/shared/home-paths";
+} from "@stapler/shared/home-paths";
+
+const DEFAULT_INSTANCE_ID = "default";
+const INSTANCE_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
 const CONFIG_BASENAME = "config.json";
 

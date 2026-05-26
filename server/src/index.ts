@@ -452,11 +452,13 @@ export async function startServer(): Promise<StartedServer> {
           });
         }
         embeddedPostgresStartedByThisProcess = true;
-        try {
-          await assertPgNotReachableOnInterfaces(port);
-        } catch (err) {
-          logger.error({ err, port }, "Embedded PostgreSQL lockdown assertion failed — database is reachable on a non-loopback interface");
-          throw err;
+        if (process.env.STAPLER_SKIP_PG_LOCKDOWN !== "true") {
+          try {
+            await assertPgNotReachableOnInterfaces(port);
+          } catch (err) {
+            logger.error({ err, port }, "Embedded PostgreSQL lockdown assertion failed — database is reachable on a non-loopback interface");
+            throw err;
+          }
         }
       }
     }

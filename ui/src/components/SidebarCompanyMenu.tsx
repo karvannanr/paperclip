@@ -18,6 +18,7 @@ import { useDialogActions } from "@/context/DialogContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "../context/SidebarContext";
+import { useCompanyOrder } from "../hooks/useCompanyOrder";
 import { CompanyPatternIcon } from "./CompanyPatternIcon";
 
 interface SidebarCompanyMenuProps {

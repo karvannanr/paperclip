@@ -79,6 +79,8 @@ async function readSandboxCursorRuntimeInfo(input: {
   graceSec: number;
 }): Promise<SandboxCursorRuntimeInfo> {
   const shouldCheckPreferredCommand = isDefaultCursorCommand(input.command) && !hasPathSeparator(input.command);
+  const preferredBasenames = shouldCheckPreferredCommand ? preferredSandboxCommandBasenames(input.command) : [];
+  const hintedRemoteSystemHomeDir = input.remoteSystemHomeDirHint ?? null;
   const homeMarker = "__STAPLER_CURSOR_HOME__:";
   const preferredMarker = "__STAPLER_CURSOR_AGENT__:";
   try {

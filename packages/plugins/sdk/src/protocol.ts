@@ -38,6 +38,7 @@ import type {
   RoutineRun,
   Agent,
   Goal,
+  PluginLocalFolderDeclaration,
 } from "@stapler/shared";
 export type { PluginLauncherRenderContextSnapshot } from "@stapler/shared";
 
@@ -55,6 +56,20 @@ import type {
   ToolRunContext,
   ToolResult,
   IssueCustomField,
+  PluginLocalFolderStatus,
+  PluginLocalFolderConfigureInput,
+  PluginLocalFolderListing,
+  PluginAccessMember,
+  PluginAccessInvite,
+  PluginAuthorizationPolicySummary,
+  PluginAuthorizationPolicyRecord,
+  PluginAssignmentPreviewInput,
+  PluginAuthorizationDecisionResult,
+  PluginAuthorizationAuditEntry,
+  PrincipalPermissionGrant,
+  PluginPerformActionActorType,
+  PluginPerformActionActorContext,
+  PluginPerformActionContext,
 } from "./types.js";
 import type {
   PluginHealthDiagnostics,
@@ -368,32 +383,7 @@ export interface GetDataParams {
   renderEnvironment?: PluginLauncherRenderContextSnapshot | null;
 }
 
-/**
- * Input for the `performAction` RPC method.
- *
- * @see PLUGIN_SPEC.md §13.9 — `performAction`
- */
-export type PluginPerformActionActorType = "user" | "agent" | "system";
-
-export interface PluginPerformActionActorContext {
-  /** Authenticated principal type resolved by the Paperclip host. */
-  type: PluginPerformActionActorType;
-  /** Authenticated board user id when `type === "user"`, otherwise null. */
-  userId: string | null;
-  /** Authenticated agent id when `type === "agent"`, otherwise null. */
-  agentId: string | null;
-  /** Authenticated heartbeat/run id when available. */
-  runId: string | null;
-  /** Company id authorized by the host bridge for this action, when applicable. */
-  companyId: string | null;
-}
-
-export interface PluginPerformActionContext {
-  /** Immutable authenticated actor context supplied by the host. */
-  actor: Readonly<PluginPerformActionActorContext>;
-  /** Convenience alias for `actor.companyId`. */
-  companyId: string | null;
-}
+export type { PluginPerformActionActorType, PluginPerformActionActorContext, PluginPerformActionContext };
 
 export interface PerformActionParams {
   /** Plugin-defined action key (e.g. `"resync"`). */
@@ -668,6 +658,21 @@ export interface WorkerToHostMethods {
   "config.runtime.get": [params: Record<string, never>, result: { values: Record<string, unknown>; revision: string }];
   "config.runtime.set": [params: { patch: Record<string, unknown> }, result: { revision: string }];
   "config.runtime.unset": [params: { key: string }, result: { revision: string }];
+
+  // Local folders
+  "localFolders.declarations": [params: Record<string, never>, result: PluginLocalFolderDeclaration[]];
+  "localFolders.configure": [params: PluginLocalFolderConfigureInput, result: PluginLocalFolderStatus];
+  "localFolders.status": [params: { companyId: string; folderKey: string }, result: PluginLocalFolderStatus];
+  "localFolders.list": [
+    params: { companyId: string; folderKey: string; relativePath?: string | null; recursive?: boolean; maxEntries?: number },
+    result: PluginLocalFolderListing,
+  ];
+  "localFolders.readText": [params: { companyId: string; folderKey: string; relativePath: string }, result: string];
+  "localFolders.writeTextAtomic": [
+    params: { companyId: string; folderKey: string; relativePath: string; contents: string },
+    result: PluginLocalFolderStatus,
+  ];
+  "localFolders.deleteFile": [params: { companyId: string; folderKey: string; relativePath: string }, result: PluginLocalFolderStatus];
 
   // State
   "state.get": [

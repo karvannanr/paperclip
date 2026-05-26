@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@stapler/db";
 import {
   agents,
   companyMemberships,
@@ -7,8 +7,8 @@ import {
   issues,
   principalPermissionGrants,
   projects,
-} from "@paperclipai/db";
-import type { PermissionKey, PrincipalType } from "@paperclipai/shared";
+} from "@stapler/db";
+import type { PermissionKey, PrincipalType } from "@stapler/shared";
 
 export type AuthorizationActor =
   {

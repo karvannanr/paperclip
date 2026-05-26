@@ -24,6 +24,7 @@ import {
   startAdapterExecutionTargetPaperclipBridge,
 } from "@stapler/adapter-utils/execution-target";
 import {
+  applyPaperclipWorkspaceEnv,
   asString,
   asNumber,
   asStringArray,
@@ -45,6 +46,7 @@ import {
   DEFAULT_STAPLER_AGENT_PROMPT_TEMPLATE,
   runChildProcess,
 } from "@stapler/adapter-utils/server-utils";
+import { shellQuote } from "@stapler/adapter-utils/ssh";
 import { isPiUnknownSessionError, parsePiJsonl } from "./parse.js";
 import { ensurePiModelConfiguredAndAvailable } from "./models.js";
 import { SANDBOX_INSTALL_COMMAND } from "../index.js";
@@ -305,14 +307,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     workspaceId,
     workspaceRepoUrl,
     workspaceRepoRef,
-    workspaceHints,
     agentHome,
-    executionTargetIsRemote,
-    executionCwd: effectiveExecutionCwd,
   });
   if (workspaceHints.length > 0) env.STAPLER_WORKSPACES_JSON = JSON.stringify(workspaceHints);
-  const targetPaperclipApiUrl = adapterExecutionTargetPaperclipApiUrl(executionTarget);
-  if (targetPaperclipApiUrl) env.STAPLER_API_URL = targetPaperclipApiUrl;
 
   for (const [key, value] of Object.entries(envConfig)) {
     if (typeof value === "string") env[key] = value;

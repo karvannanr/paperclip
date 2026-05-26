@@ -5,6 +5,7 @@ import type { ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import type { Issue } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CompanyJoinRequest } from "../api/access";
 
 const routerMock = vi.hoisted(() => ({

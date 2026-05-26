@@ -13,10 +13,11 @@ import {
 import { agents } from "./agents.js";
 import { companies } from "./companies.js";
 import { companySecrets } from "./company_secrets.js";
+import { heartbeatRuns } from "./heartbeat_runs.js";
 import { issues } from "./issues.js";
 import { projects } from "./projects.js";
 import { goals } from "./goals.js";
-import type { RoutineVariable } from "@stapler/shared";
+import type { RoutineEnvConfig, RoutineRevisionSnapshotV1, RoutineVariable } from "@stapler/shared";
 
 export const routines = pgTable(
   "routines",

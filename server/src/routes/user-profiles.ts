@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull, sql, sum } from "drizzle-orm";
 import type { Db } from "@stapler/db";
 import {
   activityLog,

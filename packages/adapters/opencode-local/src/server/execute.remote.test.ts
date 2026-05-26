@@ -88,9 +88,9 @@ vi.mock("@stapler/adapter-utils/ssh", async () => {
   };
 });
 
-vi.mock("@paperclipai/adapter-utils/execution-target", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/execution-target")>(
-    "@paperclipai/adapter-utils/execution-target",
+vi.mock("@stapler/adapter-utils/execution-target", async () => {
+  const actual = await vi.importActual<typeof import("@stapler/adapter-utils/execution-target")>(
+    "@stapler/adapter-utils/execution-target",
   );
   return {
     ...actual,
@@ -204,9 +204,9 @@ describe("opencode remote execution", () => {
     const runCall = runChildProcess.mock.calls.find((entry) => Array.isArray(entry[2]) && entry[2].includes("run")) as
       | [string, string, string[], { env: Record<string, string>; remoteExecution?: { remoteCwd: string } | null }]
       | undefined;
-    expect(call?.[3].env.STAPLER_API_URL).toBe("http://198.51.100.10:3102");
-    expect(call?.[3].env.XDG_CONFIG_HOME).toBe("/remote/workspace/.paperclip-runtime/opencode/xdgConfig");
-    expect(call?.[3].remoteExecution?.remoteCwd).toBe("/remote/workspace");
+    expect(runCall?.[3].env.STAPLER_API_URL).toBe("http://198.51.100.10:3102");
+    expect(runCall?.[3].env.XDG_CONFIG_HOME).toBe("/remote/workspace/.paperclip-runtime/opencode/xdgConfig");
+    expect(runCall?.[3].remoteExecution?.remoteCwd).toBe("/remote/workspace");
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledTimes(1);
   });
 
@@ -233,6 +233,7 @@ describe("opencode remote execution", () => {
           id: "agent-1",
           companyId: "company-1",
           name: "OpenCode Builder",
+          role: null,
           adapterType: "opencode_local",
           adapterConfig: {},
         },

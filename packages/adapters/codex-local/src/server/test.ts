@@ -12,10 +12,12 @@ import {
   ensureAdapterExecutionTargetCommandResolvable,
   ensureAdapterExecutionTargetDirectory,
   maybeRunSandboxInstallCommand,
+  prepareAdapterExecutionTargetRuntime,
   runAdapterExecutionTargetProcess,
   describeAdapterExecutionTarget,
   resolveAdapterExecutionTargetCwd,
 } from "@stapler/adapter-utils/execution-target";
+import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { parseCodexJsonl } from "./parse.js";

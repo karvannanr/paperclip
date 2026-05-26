@@ -1,6 +1,7 @@
 import type { SecretProvider, SecretProviderDescriptor } from "@stapler/shared";
 import { localEncryptedProvider } from "./local-encrypted-provider.js";
 import {
+  awsSecretsManagerProvider,
   gcpSecretManagerProvider,
   vaultProvider,
 } from "./external-stub-providers.js";
@@ -13,6 +14,7 @@ const providers: SecretProviderModule[] = [
   gcpSecretManagerProvider,
   vaultProvider,
 ];
+
 
 const providerById = new Map<SecretProvider, SecretProviderModule>(
   providers.map((provider) => [provider.id, provider]),

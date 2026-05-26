@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Db } from "@stapler/db";
 import { goals, issues, issueComments, agents } from "@stapler/db";
 import type { GoalAcceptanceCriterion, IssueOriginKind } from "@stapler/shared";

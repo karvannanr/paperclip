@@ -17,7 +17,7 @@
  * is already compatible — their adapter change is the same +3 lines Wave 3 added.
  */
 import { createHash } from "node:crypto";
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql, sum } from "drizzle-orm";
 import type { Db } from "@stapler/db";
 import { agentMemories, projectMemories } from "@stapler/db";
 import type {

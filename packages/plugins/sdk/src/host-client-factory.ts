@@ -49,7 +49,7 @@
  */
 
 import type { PluginCapability } from "@stapler/shared";
-import type { WorkerToHostMethods, WorkerToHostMethodName } from "./protocol.js";
+import type { WorkerToHostMethods, WorkerToHostMethodName, WorkerHostCallContext } from "./protocol.js";
 import { PLUGIN_RPC_ERROR_CODES } from "./protocol.js";
 
 // ---------------------------------------------------------------------------
@@ -373,6 +373,15 @@ const METHOD_CAPABILITY_MAP: Record<WorkerToHostMethodName, PluginCapability | n
   "config.runtime.get": "plugin.config.write",
   "config.runtime.set": "plugin.config.write",
   "config.runtime.unset": "plugin.config.write",
+
+  // Local folders
+  "localFolders.declarations": null,
+  "localFolders.configure": "local.folders",
+  "localFolders.status": "local.folders",
+  "localFolders.list": "local.folders",
+  "localFolders.readText": "local.folders",
+  "localFolders.writeTextAtomic": "local.folders",
+  "localFolders.deleteFile": "local.folders",
 
   // State
   "state.get": "plugin.state.read",

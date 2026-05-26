@@ -1543,3 +1543,22 @@ export async function fileExists(filePath: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function findReachablePaperclipApiUrlOverSsh(input: {
+  config: SshConnectionConfig;
+  candidates: string[];
+}): Promise<string | null> {
+  for (const candidate of input.candidates) {
+    try {
+      const result = await runSshCommand(
+        input.config,
+        `curl -sf --max-time 5 --output /dev/null ${shellQuote(candidate + "/api/health")} && echo ok`,
+        { timeoutMs: 10_000 },
+      );
+      if (result.stdout.trim() === "ok") return candidate;
+    } catch {
+      // not reachable, try next
+    }
+  }
+  return null;
+}

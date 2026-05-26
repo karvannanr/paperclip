@@ -38,6 +38,9 @@ import type {
   IssueBlockerAttention,
   IssueRecoveryAction,
   IssueRelationIssueSummary,
+  IssueScheduledRetry,
+  IssueWorkMode,
+  SuccessfulRunHandoffState,
 } from "@stapler/shared";
 import type { ActiveRunForIssue, LiveRunForIssue } from "../api/heartbeats";
 import { useLiveRunTranscripts } from "./transcript/useLiveRunTranscripts";
@@ -116,7 +119,7 @@ import {
 import type {
   IssueCommentMetadata,
   IssueCommentPresentation,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import {
   describeToolInput,
   displayToolName,

@@ -10,7 +10,7 @@ import {
   issues as issuesTable,
   pluginLogs,
 } from "@stapler/db";
-import { eq, and, like, desc, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, like, lte, sql, sum } from "drizzle-orm";
 import type {
   HostServices,
   Company,
@@ -482,7 +482,7 @@ export function buildHostServices(
   pluginKey: string,
   eventBus: PluginEventBus,
   notifyWorker?: (method: string, params: unknown) => void,
-  options: { pluginWorkerManager?: PluginWorkerManager; manifest?: import("@paperclipai/shared").PaperclipPluginManifestV1 } = {},
+  options: { pluginWorkerManager?: PluginWorkerManager; manifest?: import("@stapler/shared").PaperclipPluginManifestV1 } = {},
 ): HostServices & { dispose(): void } {
   const registry = pluginRegistryService(db);
   const stateStore = pluginStateStore(db);

@@ -11,10 +11,9 @@
  * starts so a slow run never causes a double-fire within the same minute.
  */
 
-import { and, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import type { Db } from "@stapler/db";
 import { agents, companies, delegationEdges, evalSuites, evalRuns } from "@stapler/db";
-import { eq } from "drizzle-orm";
 import { parseCron, validateCron } from "./cron.js";
 import { runEvalSuite } from "./eval-runner.js";
 import { logActivity } from "./activity-log.js";

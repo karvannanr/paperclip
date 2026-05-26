@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
-import { runChildProcess } from "@paperclipai/adapter-utils/server-utils";
+import type { AdapterExecutionTarget } from "@stapler/adapter-utils/execution-target";
+import { runChildProcess } from "@stapler/adapter-utils/server-utils";
 import { SANDBOX_INSTALL_COMMAND } from "../index.js";
 import { execute } from "./execute.js";
 
@@ -35,9 +35,9 @@ const {
   return { setPrepareCursorSandboxCommand };
 });
 
-vi.mock("@paperclipai/adapter-utils/execution-target", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/execution-target")>(
-    "@paperclipai/adapter-utils/execution-target",
+vi.mock("@stapler/adapter-utils/execution-target", async () => {
+  const actual = await vi.importActual<typeof import("@stapler/adapter-utils/execution-target")>(
+    "@stapler/adapter-utils/execution-target",
   );
   return {
     ...actual,
@@ -169,6 +169,7 @@ describe("cursor execute", () => {
           id: "agent-1",
           companyId: "company-1",
           name: "Cursor Coder",
+          role: null,
           adapterType: "cursor",
           adapterConfig: {},
         },
@@ -306,6 +307,7 @@ printf '%s\\n' '{"type":"result","subtype":"success","session_id":"cursor-sessio
           id: "agent-1",
           companyId: "company-1",
           name: "Cursor Coder",
+          role: null,
           adapterType: "cursor",
           adapterConfig: {},
         },

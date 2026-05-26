@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@stapler/db";
-import { projects, projectGoals, goals, projectWorkspaces, workspaceRuntimeServices } from "@stapler/db";
+import { pluginManagedResources, plugins, projects, projectGoals, goals, projectWorkspaces, workspaceRuntimeServices } from "@stapler/db";
 import {
   PROJECT_COLORS,
   deriveProjectUrlKey,
@@ -602,7 +602,7 @@ export function projectService(db: Db) {
             resourceKey: input.projectKey,
             companyId: input.companyId,
             projectId: project?.id ?? existingBinding.resourceId,
-            project: project as import("@paperclipai/shared").Project | null,
+            project: project as import("@stapler/shared").Project | null,
             status: input.reset ? "reset" : "resolved",
           };
         }
@@ -636,7 +636,7 @@ export function projectService(db: Db) {
           resourceKey: input.projectKey,
           companyId: input.companyId,
           projectId: hydrated?.id ?? project.id,
-          project: hydrated as import("@paperclipai/shared").Project | null,
+          project: hydrated as import("@stapler/shared").Project | null,
           status: "relinked",
         };
       }
@@ -675,7 +675,7 @@ export function projectService(db: Db) {
         resourceKey: input.projectKey,
         companyId: input.companyId,
         projectId: hydrated?.id ?? project.id,
-        project: hydrated as import("@paperclipai/shared").Project | null,
+        project: hydrated as import("@stapler/shared").Project | null,
         status: "created",
       };
     },

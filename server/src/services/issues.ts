@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { type SQL, and, asc, desc, eq, gt, inArray, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
+import { type SQL, and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import type { Db } from "@stapler/db";
 import {
   activityLog,
@@ -39,7 +39,7 @@ import type {
   IssueProductivityReviewTrigger,
   IssueRelationIssueSummary,
 } from "@stapler/shared";
-import { clampIssueRequestDepth, extractAgentMentionIds, extractProjectMentionIds, isUuidLike } from "@stapler/shared";
+import { clampIssueRequestDepth, extractAgentMentionIds, extractProjectMentionIds, isUuidLike, normalizeIssueIdentifier as normalizeIssueReferenceIdentifier } from "@stapler/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
 import {
   defaultIssueExecutionWorkspaceSettingsForProject,

@@ -56,6 +56,7 @@ import {
 } from "./workspace-command-authz.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { environmentService } from "../services/environments.js";
+import { environmentRuntimeService } from "../services/environment-runtime.js";
 import { resolveEnvironmentExecutionTarget } from "../services/environment-execution-target.js";
 import type { AdapterExecutionTarget } from "@stapler/adapter-utils/execution-target";
 import type { AdapterEnvironmentCheck } from "@stapler/adapter-utils";

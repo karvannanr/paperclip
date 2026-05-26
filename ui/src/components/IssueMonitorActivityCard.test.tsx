@@ -2,7 +2,7 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IssueMonitorActivityCard } from "./IssueMonitorActivityCard";
 
@@ -80,6 +80,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     hiddenAt: null,
     createdAt: new Date("2026-04-11T10:00:00.000Z"),
     updatedAt: new Date("2026-04-11T10:00:00.000Z"),
+    scheduledFor: null,
     ...overrides,
     workMode: overrides.workMode ?? "standard",
   };

@@ -13,7 +13,7 @@
  * (default 4096 bytes). Callers receive `MemoryContentTooLargeError` when exceeded.
  */
 import { createHash } from "node:crypto";
-import { and, asc, desc, eq, gt, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNotNull, isNull, ne, or, sql, sum } from "drizzle-orm";
 import {
   cosineSimilarity,
   findBestTagsFromCandidates,

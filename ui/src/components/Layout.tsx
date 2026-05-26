@@ -411,7 +411,7 @@ export function Layout() {
                 ) : (
                   companySidebar
                 )}
-              </ResizableSidebarPane>
+              </div>
             </div>
             <SidebarAccountMenu
               deploymentMode={health?.deploymentMode}

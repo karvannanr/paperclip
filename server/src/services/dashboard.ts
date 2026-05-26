@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, count, eq, gte, sql, sum } from "drizzle-orm";
 import type { Db } from "@stapler/db";
 import { agents, approvals, companies, costEvents, heartbeatRuns, issues } from "@stapler/db";
 import { notFound } from "../errors.js";

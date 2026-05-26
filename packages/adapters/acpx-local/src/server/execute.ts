@@ -21,7 +21,6 @@ import {
   readPaperclipIssueWorkModeFromContext,
   renderPaperclipWakePrompt,
   renderTemplate,
-  resolvePaperclipInstanceRootForAdapter,
   resolvePaperclipDesiredSkillNames,
   rewriteWorkspaceCwdEnvVarsForExecution,
   shapePaperclipWorkspaceEnvForExecution,

@@ -41,6 +41,12 @@ import type {
   Goal,
   IssueCustomFieldType,
   IssueCustomFieldDeclaration,
+  PermissionKey,
+  PrincipalType,
+  HumanCompanyMembershipRole,
+  MembershipStatus,
+  PrincipalPermissionGrant,
+  InviteJoinType,
 } from "@stapler/shared";
 
 // ---------------------------------------------------------------------------
@@ -124,6 +130,12 @@ export type {
   Goal,
   IssueCustomFieldType,
   IssueCustomFieldDeclaration,
+  PermissionKey,
+  PrincipalType,
+  HumanCompanyMembershipRole,
+  MembershipStatus,
+  PrincipalPermissionGrant,
+  InviteJoinType,
 } from "@stapler/shared";
 
 // ---------------------------------------------------------------------------
@@ -510,7 +522,7 @@ export interface PluginLocalFolderListing {
 
 export interface PluginLocalFoldersClient {
   /** Manifest-declared local folders for this plugin. */
-  declarations(): import("@paperclipai/shared").PluginLocalFolderDeclaration[];
+  declarations(): import("@stapler/shared").PluginLocalFolderDeclaration[];
   /** Persist a company-scoped local folder path after validating it. */
   configure(input: PluginLocalFolderConfigureInput): Promise<PluginLocalFolderStatus>;
   /** Check the stored folder readiness for a company and folder key. */
@@ -996,6 +1008,21 @@ export interface PluginDataClient {
    * @param handler - Async function that receives request params and returns JSON-serializable data
    */
   register(key: string, handler: (params: Record<string, unknown>) => Promise<unknown>): void;
+}
+
+export type PluginPerformActionActorType = "user" | "agent" | "system";
+
+export interface PluginPerformActionActorContext {
+  type: PluginPerformActionActorType;
+  userId: string | null;
+  agentId: string | null;
+  runId: string | null;
+  companyId: string | null;
+}
+
+export interface PluginPerformActionContext {
+  actor: Readonly<PluginPerformActionActorContext>;
+  companyId: string | null;
 }
 
 /**

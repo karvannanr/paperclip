@@ -49,6 +49,8 @@
     "@stapler/adapter-claude-local": "workspace:*",
     "@stapler/adapter-codex-local": "workspace:*",
     "@stapler/adapter-cursor-local": "workspace:*",
+    "@paperclipai/adapter-cursor-cloud": "workspace:*",
+    "@paperclipai/adapter-grok-local": "workspace:*",
     "@stapler/adapter-gemini-local": "workspace:*",
     "@stapler/adapter-ollama-local": "workspace:*",
     "@stapler/adapter-openclaw-gateway": "workspace:*",

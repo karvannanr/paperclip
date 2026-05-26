@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionContext } from "@paperclipai/adapter-utils";
+import type { AdapterExecutionContext } from "@stapler/adapter-utils";
 import { execute } from "./execute.js";
 
 type MockRunOptions = {
@@ -86,6 +86,7 @@ function createContext(
     id: "agent-1",
     companyId: "company-1",
     name: "Cursor Cloud Agent",
+    role: null,
     adapterType: "cursor_cloud",
     adapterConfig: {},
   };

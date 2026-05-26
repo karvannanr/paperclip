@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { pluginOperationIssueOriginKind } from "@paperclipai/shared";
+import { pluginOperationIssueOriginKind } from "@stapler/shared";
 import type {
   PaperclipPluginManifestV1,
   PluginCapability,

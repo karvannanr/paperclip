@@ -1,6 +1,5 @@
 import path from "node:path";
-const PATH_SEGMENT_RE = /^[a-zA-Z0-9_-]+$/;
-const FRIENDLY_PATH_SEGMENT_RE = /[^a-zA-Z0-9._-]+/g;
+
 import {
   expandHomePrefix,
   resolveDefaultBackupDir as resolveSharedDefaultBackupDir,
@@ -10,33 +9,29 @@ import {
   resolveDefaultStorageDir as resolveSharedDefaultStorageDir,
   resolveHomeAwarePath,
   resolvePaperclipConfigPathForInstance,
-  resolvePaperclipHomeDir,
-  resolvePaperclipInstanceId,
-  resolvePaperclipInstanceRoot,
-} from "@paperclipai/shared/home-paths";
+  resolvePaperclipHomeDir as resolveSharedPaperclipHomeDir,
+  resolvePaperclipInstanceId as resolveSharedPaperclipInstanceId,
+  resolvePaperclipInstanceRoot as resolveSharedPaperclipInstanceRoot,
+} from "@stapler/shared/home-paths";
 
-function expandHomePrefix(value: string): string {
-  if (value === "~") return os.homedir();
-  if (value.startsWith("~/")) return path.resolve(os.homedir(), value.slice(2));
-  return value;
-}
+export {
+  resolveHomeAwarePath,
+  resolvePaperclipConfigPathForInstance,
+};
+
+const PATH_SEGMENT_RE = /^[a-zA-Z0-9_-]+$/;
+const FRIENDLY_PATH_SEGMENT_RE = /[^a-zA-Z0-9._-]+/g;
 
 export function resolvePaperclipHomeDir(): string {
-  const envHome = process.env.STAPLER_HOME?.trim();
-  if (envHome) return path.resolve(expandHomePrefix(envHome));
-  return path.resolve(os.homedir(), ".paperclip");
+  return resolveSharedPaperclipHomeDir();
 }
 
 export function resolvePaperclipInstanceId(): string {
-  const raw = process.env.STAPLER_INSTANCE_ID?.trim() || DEFAULT_INSTANCE_ID;
-  if (!INSTANCE_ID_RE.test(raw)) {
-    throw new Error(`Invalid STAPLER_INSTANCE_ID '${raw}'.`);
-  }
-  return raw;
+  return resolveSharedPaperclipInstanceId();
 }
 
 export function resolvePaperclipInstanceRoot(): string {
-  return path.resolve(resolvePaperclipHomeDir(), "instances", resolvePaperclipInstanceId());
+  return resolveSharedPaperclipInstanceRoot();
 }
 
 export function resolveDefaultConfigPath(): string {

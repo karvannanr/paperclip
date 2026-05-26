@@ -6,6 +6,7 @@ import {
   ensurePathInEnv,
   runChildProcess,
 } from "@stapler/adapter-utils/server-utils";
+import { isValidOpenCodeModelId } from "../index.js";
 
 const MODELS_CACHE_TTL_MS = 60_000;
 const MODELS_DISCOVERY_TIMEOUT_MS = 20_000;

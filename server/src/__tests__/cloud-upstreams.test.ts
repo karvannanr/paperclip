@@ -1,6 +1,6 @@
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { companies, cloudUpstreamConnections, cloudUpstreamRuns, companySkills, createDb } from "@paperclipai/db";
+import { companies, cloudUpstreamConnections, cloudUpstreamRuns, companySkills, createDb } from "@stapler/db";
 
 import { HttpError } from "../errors.js";
 import {

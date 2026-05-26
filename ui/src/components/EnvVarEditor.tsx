@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { CompanySecret, EnvBinding } from "@stapler/shared";
-import { X } from "lucide-react";
+import type { CompanySecret, EnvBinding, SecretVersionSelector } from "@stapler/shared";
+import { AlertCircle, X } from "lucide-react";
 import { cn } from "../lib/utils";
 
 const inputClass =

@@ -94,6 +94,7 @@ export function resolveManagedClaudeConfigSeedDir(
 ): string {
   const paperclipHome = nonEmpty(env.STAPLER_HOME) ?? path.resolve(os.homedir(), ".paperclip");
   const instanceId = nonEmpty(env.STAPLER_INSTANCE_ID) ?? DEFAULT_STAPLER_INSTANCE_ID;
+  const instanceRoot = path.resolve(paperclipHome, "instances", instanceId);
   return companyId
     ? path.resolve(instanceRoot, "companies", companyId, "claude-config-seed")
     : path.resolve(instanceRoot, "claude-config-seed");

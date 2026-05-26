@@ -44,7 +44,7 @@ import {
   DEFAULT_STAPLER_AGENT_PROMPT_TEMPLATE,
   joinPromptSections,
 } from "@stapler/adapter-utils/server-utils";
-import { DEFAULT_CURSOR_LOCAL_MODEL } from "../index.js";
+import { DEFAULT_CURSOR_LOCAL_MODEL, SANDBOX_INSTALL_COMMAND } from "../index.js";
 import { parseCursorJsonl, isCursorUnknownSessionError } from "./parse.js";
 import { prepareCursorSandboxCommand } from "./remote-command.js";
 import { normalizeCursorStreamLine } from "../shared/stream.js";
@@ -304,10 +304,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   });
   if (workspaceHints.length > 0) {
     env.STAPLER_WORKSPACES_JSON = JSON.stringify(workspaceHints);
-  }
-  const targetPaperclipApiUrl = adapterExecutionTargetPaperclipApiUrl(executionTarget);
-  if (targetPaperclipApiUrl) {
-    env.STAPLER_API_URL = targetPaperclipApiUrl;
   }
   for (const [k, v] of Object.entries(envConfig)) {
     if (typeof v === "string") env[k] = v;

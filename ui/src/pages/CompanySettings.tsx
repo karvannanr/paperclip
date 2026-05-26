@@ -1,4 +1,10 @@
 import { ChangeEvent, useEffect, useState } from "react";
+
+interface AgentSnippetInput {
+  connectionCandidates?: string[];
+  onboardingTextUrl: string;
+  testResolutionUrl?: string;
+}
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_COMPANY_ATTACHMENT_MAX_BYTES,

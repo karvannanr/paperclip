@@ -1,4 +1,18 @@
-import type { CompanySecret, SecretProviderDescriptor, SecretProvider } from "@stapler/shared";
+import type {
+  CompanySecret,
+  CompanySecretProviderConfig,
+  CompanySecretUsageBinding,
+  RemoteSecretImportPreviewResult,
+  RemoteSecretImportResult,
+  SecretAccessEvent,
+  SecretManagedMode,
+  SecretProvider,
+  SecretProviderConfigDiscoveryPreviewResult,
+  SecretProviderConfigHealthResponse,
+  SecretProviderConfigStatus,
+  SecretProviderDescriptor,
+  SecretStatus,
+} from "@stapler/shared";
 import { api } from "./client";
 
 export interface SecretUsageResponse {

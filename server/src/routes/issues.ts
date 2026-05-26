@@ -3,7 +3,8 @@ import { Router, type Request, type Response } from "express";
 import multer from "multer";
 import { z } from "zod";
 import type { Db } from "@stapler/db";
-import { issueExecutionDecisions } from "@stapler/db";
+import { and, asc, count, desc, eq, inArray, not, notInArray, or } from "drizzle-orm";
+import { activityLog, issueExecutionDecisions } from "@stapler/db";
 import {
   addIssueCommentSchema,
   acceptIssueThreadInteractionSchema,
@@ -81,6 +82,7 @@ import {
   SVG_CONTENT_TYPE,
 } from "../attachment-types.js";
 import { queueIssueAssignmentWakeup } from "../services/issue-assignment-wakeup.js";
+import { createCompanySearchRateLimiter, type CompanySearchRateLimiter } from "../services/company-search-rate-limit.js";
 import { assertEnvironmentSelectionForCompany } from "./environment-selection.js";
 import { executionWorkspaceService as executionWorkspaceServiceDirect } from "../services/execution-workspaces.js";
 import { feedbackService } from "../services/feedback.js";

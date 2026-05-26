@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { applyPendingMigrations, ensurePostgresDatabase } from "./client.js";
 import { buildEmbeddedPostgresFlags } from "./embedded-postgres-flags.js";
+import { prepareEmbeddedPostgresNativeRuntime } from "./embedded-postgres-native.js";
 
 type EmbeddedPostgresInstance = {
   initialise(): Promise<void>;

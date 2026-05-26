@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Issue } from "@stapler/shared";
+import type { Issue, IssueRecoveryAction } from "@stapler/shared";
 import { Link } from "@/lib/router";
 import { Eye, Flag, X } from "lucide-react";
 import {

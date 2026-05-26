@@ -7,7 +7,7 @@ import type {
   CompanyPortabilityExportResult,
   CompanyPortabilityFileEntry,
   InstanceExperimentalSettings,
-} from "@paperclipai/shared";
+} from "@stapler/shared";
 import { openUrl } from "../../client/board-auth.js";
 import { resolvePaperclipInstanceId } from "../../config/home.js";
 import {

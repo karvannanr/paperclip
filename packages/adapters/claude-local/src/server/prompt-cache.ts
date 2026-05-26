@@ -1,5 +1,6 @@
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { createHash, type Hash } from "node:crypto";
 import type { AdapterExecutionContext } from "@stapler/adapter-utils";
@@ -26,6 +27,7 @@ function resolveManagedClaudePromptCacheRoot(
 ): string {
   const paperclipHome = nonEmpty(env.STAPLER_HOME) ?? path.resolve(os.homedir(), ".paperclip");
   const instanceId = nonEmpty(env.STAPLER_INSTANCE_ID) ?? DEFAULT_STAPLER_INSTANCE_ID;
+  const instanceRoot = path.resolve(paperclipHome, "instances", instanceId);
   return path.resolve(
     instanceRoot,
     "companies",

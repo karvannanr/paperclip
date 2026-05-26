@@ -80,9 +80,9 @@ vi.mock("@stapler/adapter-utils/ssh", async () => {
   };
 });
 
-vi.mock("@paperclipai/adapter-utils/execution-target", async () => {
-  const actual = await vi.importActual<typeof import("@paperclipai/adapter-utils/execution-target")>(
-    "@paperclipai/adapter-utils/execution-target",
+vi.mock("@stapler/adapter-utils/execution-target", async () => {
+  const actual = await vi.importActual<typeof import("@stapler/adapter-utils/execution-target")>(
+    "@stapler/adapter-utils/execution-target",
   );
   return {
     ...actual,
@@ -308,6 +308,7 @@ describe("pi remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Pi Builder",
+        role: null,
         adapterType: "pi_local",
         adapterConfig: {},
       },
@@ -381,6 +382,7 @@ describe("pi remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Pi Builder",
+        role: null,
         adapterType: "pi_local",
         adapterConfig: {},
       },
@@ -450,6 +452,7 @@ describe("pi remote execution", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Pi Builder",
+        role: null,
         adapterType: "pi_local",
         adapterConfig: {},
       },

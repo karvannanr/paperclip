@@ -20,7 +20,9 @@ import {
 import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
 import { Identity } from "./Identity";
-import type { Issue } from "@stapler/shared";
+import type { Issue, IssueStatus } from "@stapler/shared";
+import { AlertTriangle } from "lucide-react";
+import { isSuccessfulRunHandoffRequired } from "../lib/successful-run-handoff";
 
 export const KANBAN_BOARD_HIGH_VOLUME_THRESHOLD = 100;
 export const KANBAN_COLUMN_PAGE_SIZE_OPTIONS = [10, 25, 50] as const;

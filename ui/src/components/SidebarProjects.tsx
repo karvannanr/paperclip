@@ -20,6 +20,14 @@ import { projectsApi } from "../api/projects";
 import { SIDEBAR_SCROLL_RESET_STATE } from "../lib/navigation-scroll";
 import { queryKeys } from "../lib/queryKeys";
 import { cn, projectRouteRef } from "../lib/utils";
+import {
+  getProjectSortModeStorageKey,
+  PROJECT_SORT_MODE_UPDATED_EVENT,
+  type ProjectSidebarSortMode,
+  type ProjectSortModeUpdatedDetail,
+  readProjectSortMode,
+  writeProjectSortMode,
+} from "../lib/project-order";
 import { useProjectOrder } from "../hooks/useProjectOrder";
 import { BudgetSidebarMarker } from "./BudgetSidebarMarker";
 import { SidebarSection, type SidebarSectionRadioChoice } from "./SidebarSection";

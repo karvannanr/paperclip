@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from "vitest";
-import type { SecretProviderDescriptor } from "@paperclipai/shared";
+import type { SecretProviderDescriptor } from "@stapler/shared";
 import {
   getAwsManagedPathPreview,
   getCreateProviderBlockReason,

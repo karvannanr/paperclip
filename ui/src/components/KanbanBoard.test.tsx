@@ -2,7 +2,7 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { Issue, IssueStatus } from "@paperclipai/shared";
+import type { Issue, IssueStatus } from "@stapler/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanBoard, resolveKanbanTargetStatus } from "./KanbanBoard";
 
@@ -64,6 +64,7 @@ function createIssue(index: number, status: IssueStatus): Issue {
     lastExternalCommentAt: null,
     lastActivityAt: null,
     isUnreadForMe: false,
+    scheduledFor: null,
   };
 }
 

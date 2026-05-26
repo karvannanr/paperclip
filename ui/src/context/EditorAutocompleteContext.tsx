@@ -2,7 +2,9 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { buildSkillMentionHref } from "@stapler/shared";
 import { instanceSkillsApi } from "../api/skills";
+import { routinesApi } from "../api/routines";
 import { queryKeys } from "../lib/queryKeys";
+import { useCompany } from "./CompanyContext";
 
 export interface SkillCommandOption {
   id: string;
@@ -37,6 +39,7 @@ const EditorAutocompleteContext = createContext<EditorAutocompleteContextValue>(
 });
 
 export function EditorAutocompleteProvider({ children }: { children: ReactNode }) {
+  const { selectedCompanyId } = useCompany();
   const { data: skills = [] } = useQuery({
     queryKey: queryKeys.instanceSkills.list,
     queryFn: () => instanceSkillsApi.list(),
@@ -50,18 +53,29 @@ export function EditorAutocompleteProvider({ children }: { children: ReactNode }
   });
 
   const value = useMemo<EditorAutocompleteContextValue>(() => ({
-    slashCommands: skills.map((skill) => ({
-      id: `skill:${skill.id}`,
-      kind: "skill",
-      skillId: skill.id,
-      key: skill.key,
-      name: skill.name,
-      slug: skill.slug,
-      description: skill.description ?? null,
-      href: buildSkillMentionHref(skill.id, skill.slug),
-      aliases: [skill.slug, skill.name, skill.key],
-    })),
-  }), [skills]);
+    slashCommands: [
+      ...skills.map((skill) => ({
+        id: `skill:${skill.id}`,
+        kind: "skill" as const,
+        skillId: skill.id,
+        key: skill.key,
+        name: skill.name,
+        slug: skill.slug,
+        description: skill.description ?? null,
+        href: buildSkillMentionHref(skill.id, skill.slug),
+        aliases: [skill.slug, skill.name, skill.key],
+      })),
+      ...routines.map((routine) => ({
+        id: `routine:${routine.id}`,
+        kind: "routine" as const,
+        routineId: routine.id,
+        name: routine.title,
+        status: routine.status,
+        href: `/routines/${routine.id}`,
+        aliases: [routine.title],
+      })),
+    ],
+  }), [skills, routines]);
 
   return (
     <EditorAutocompleteContext.Provider value={value}>

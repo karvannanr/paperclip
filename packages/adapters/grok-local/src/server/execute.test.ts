@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdapterExecutionContext } from "@paperclipai/adapter-utils";
+import type { AdapterExecutionContext } from "@stapler/adapter-utils";
 
 const ensureRuntimeInstalledMock = vi.hoisted(() => vi.fn(async () => {}));
 const ensureCommandMock = vi.hoisted(() => vi.fn(async () => {}));
@@ -13,7 +13,7 @@ const prepareRuntimeMock = vi.hoisted(() => vi.fn(async () => ({
 const resolveCommandForLogsMock = vi.hoisted(() => vi.fn(async () => "grok"));
 const runProcessMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@paperclipai/adapter-utils/execution-target", () => ({
+vi.mock("@stapler/adapter-utils/execution-target", () => ({
   adapterExecutionTargetIsRemote: () => false,
   adapterExecutionTargetRemoteCwd: (_target: unknown, cwd: string) => cwd,
   overrideAdapterExecutionTargetRemoteCwd: (target: unknown, _cwd: string) => target,
@@ -97,6 +97,7 @@ describe("grok_local execute", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Grok Agent",
+        role: null,
         adapterType: "grok_local",
         adapterConfig: {},
       },
@@ -154,6 +155,7 @@ describe("grok_local execute", () => {
         id: "agent-1",
         companyId: "company-1",
         name: "Grok Agent",
+        role: null,
         adapterType: "grok_local",
         adapterConfig: {},
       },
