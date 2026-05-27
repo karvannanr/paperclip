@@ -67,13 +67,13 @@ describe("validateConfiguredBindMode", () => {
     expect(errors).toHaveLength(0);
   });
 
-  it("errors when local_trusted uses lan bind", () => {
+  it("allows local_trusted with lan bind", () => {
     const errors = validateConfiguredBindMode({
       deploymentMode: "local_trusted",
       deploymentExposure: "private",
       bind: "lan",
     });
-    expect(errors.some((e) => e.includes("loopback"))).toBe(true);
+    expect(errors).toEqual([]);
   });
 
   it("errors when custom bind has no customBindHost", () => {

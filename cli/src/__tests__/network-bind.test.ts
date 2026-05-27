@@ -5,7 +5,7 @@ import { buildPresetServerConfig } from "../config/server-bind.js";
 const ORIGINAL_PATH = process.env.PATH;
 
 describe("network bind helpers", () => {
-  it("rejects non-loopback bind modes in local_trusted", () => {
+  it("allows non-loopback bind modes in local_trusted", () => {
     expect(
       validateConfiguredBindMode({
         deploymentMode: "local_trusted",
@@ -13,7 +13,7 @@ describe("network bind helpers", () => {
         bind: "lan",
         host: "0.0.0.0",
       }),
-    ).toContain("local_trusted requires server.bind=loopback");
+    ).toEqual([]);
   });
 
   it("resolves tailnet bind using the detected tailscale address", () => {

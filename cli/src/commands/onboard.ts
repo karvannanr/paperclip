@@ -292,24 +292,6 @@ function quickstartDefaultsFromEnv(opts?: { preferTrustedLocal?: boolean }): {
       reason: "Ignored because deployment mode local_trusted always forces private exposure",
     });
   }
-  if (deploymentMode === "local_trusted" && process.env.STAPLER_BIND !== undefined) {
-    ignoredEnvKeys.push({
-      key: "STAPLER_BIND",
-      reason: "Ignored because deployment mode local_trusted always uses loopback reachability",
-    });
-  }
-  if (deploymentMode === "local_trusted" && process.env.STAPLER_BIND_HOST !== undefined) {
-    ignoredEnvKeys.push({
-      key: "STAPLER_BIND_HOST",
-      reason: "Ignored because deployment mode local_trusted always uses loopback reachability",
-    });
-  }
-  if (deploymentMode === "local_trusted" && process.env.HOST !== undefined) {
-    ignoredEnvKeys.push({
-      key: "HOST",
-      reason: "Ignored because deployment mode local_trusted always uses loopback reachability",
-    });
-  }
 
   const ignoredKeySet = new Set(ignoredEnvKeys.map((entry) => entry.key));
   const usedEnvKeys = ONBOARD_ENV_KEYS.filter(

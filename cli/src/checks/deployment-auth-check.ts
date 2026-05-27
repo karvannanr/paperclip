@@ -9,19 +9,10 @@ export function deploymentAuthCheck(config: PaperclipConfig): CheckResult {
   const bind = config.server.bind ?? inferBindModeFromHost(config.server.host);
 
   if (mode === "local_trusted") {
-    if (bind !== "loopback") {
-      return {
-        name: "Deployment/auth mode",
-        status: "fail",
-        message: `local_trusted requires loopback binding (found ${bind})`,
-        canRepair: false,
-        repairHint: "Run `stapler configure --section server` and choose Local trusted / loopback reachability",
-      };
-    }
     return {
       name: "Deployment/auth mode",
       status: "pass",
-      message: "local_trusted mode is configured for loopback-only access",
+      message: `local_trusted mode is configured with ${bind} binding (no login required)`,
     };
   }
 
